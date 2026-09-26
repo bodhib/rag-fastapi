@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+
+testpaths = [
+    "tests"
+]
+
+markers = [
+    "integration: tests that use real external ML models"
+]
