@@ -150,7 +150,7 @@ def query(
     ],
 )
 def upload_document(
-    background_tasks: BackgroundTasks,
+    # background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     file_storage: UploadedFileStorage = Depends(
         get_file_storage
@@ -158,9 +158,9 @@ def upload_document(
     job_store: IngestionJobStore = Depends(
         get_ingestion_job_store
     ),
-    background_ingestion_service: BackgroundIngestionService = Depends(
-        get_background_ingestion_service
-    ),
+    # background_ingestion_service: BackgroundIngestionService = Depends(
+    #     get_background_ingestion_service
+    # ),
 ) -> DocumentUploadResponse:
     """
     Upload a document and schedule it for background ingestion.
@@ -192,10 +192,10 @@ def upload_document(
             )
         )
 
-        background_tasks.add_task(
-            background_ingestion_service.execute,
-            job_id,
-        )
+        # background_tasks.add_task(
+        #     background_ingestion_service.execute,
+        #     job_id,
+        # )
 
     except ValueError as exc:
         raise HTTPException(
