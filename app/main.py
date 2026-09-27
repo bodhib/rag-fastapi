@@ -39,6 +39,8 @@ from app.schemas import (
 )
 from app.lifecycle import lifespan
 
+from app.ingestion_job_store import IngestionJob
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
