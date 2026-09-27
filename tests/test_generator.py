@@ -267,7 +267,7 @@ def test_empty_model_name_is_rejected() -> None:
     
 @pytest.mark.integration
 def test_real_gemini_generation() -> None:
-    generator = GeminiGenerator(api_key="AIzaSyDxUjZGF5O4SYmPUL9yR5x2CH4KPILUd04")
+    generator = GeminiGenerator(api_key="AQ.Ab8RN6JjBZrHGcVgHfE1c6WR013WZ_A7870_7gNCBwuWba9HRw")
 
     result = generator.generate(
         query="How long do I have to request a refund?",
