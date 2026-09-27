@@ -183,31 +183,13 @@ def debug_job_test(
     "/documents/upload",
     response_model=DocumentUploadResponse,
     status_code=202,
-    dependencies=[
-        Depends(
-            require_role(UserRole.ADMIN)
-        )
-    ],
+    dependencies=[Depends(require_role(UserRole.ADMIN))],
 )
 def upload_document(
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    file_storage: UploadedFileStorage = Depends(
-        get_file_storage
-    ),
-    job_store: IngestionJobStore = Depends(
-        get_ingestion_job_store
-    ),
-    background_ingestion_service: BackgroundIngestionService = Depends(
-        get_background_ingestion_service
-    ),
+    file_storage: UploadedFileStorage = Depends(get_file_storage),
+    job_store: IngestionJobStore = Depends(get_ingestion_job_store),
 ) -> DocumentUploadResponse:
-    """
-    Upload a document and schedule it for background ingestion.
-
-    Supported formats:
-    PDF, TXT, and DOCX.
-    """
 
     if not file.filename:
         raise HTTPException(
@@ -215,45 +197,28 @@ def upload_document(
             detail="Uploaded file must have a filename",
         )
 
-    try:
-        stored_path = file_storage.save(
-            source_file=file.file,
+    stored_path = file_storage.save(
+        source_file=file.file,
+        filename=file.filename,
+    )
+
+    job_id = f"job_{uuid4().hex}"
+
+    job_store.create(
+        IngestionJob(
+            job_id=job_id,
             filename=file.filename,
+            file_path=str(stored_path),
+            status="pending",
         )
-
-        job_id = f"job_{uuid4().hex}"
-
-        job_store.create(
-            IngestionJob(
-                job_id=job_id,
-                filename=file.filename,
-                file_path=str(stored_path),
-                status="pending",
-            )
-        )
-
-        # background_tasks.add_task(
-        #     background_ingestion_service.execute,
-        #     job_id,
-        # )
-
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400,
-            detail=str(exc),
-        ) from exc
-
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail="Document upload failed",
-        ) from exc
+    )
 
     return DocumentUploadResponse(
         job_id=job_id,
         filename=file.filename,
         status="pending",
     )
+
 
 @app.post("/debug/upload-test")
 def debug_upload_test(
