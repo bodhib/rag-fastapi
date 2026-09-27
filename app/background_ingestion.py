@@ -9,6 +9,7 @@ document ingestion pipeline so that a real worker system can replace
 FastAPI BackgroundTasks later.
 """
 
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -19,14 +20,19 @@ from app.ingestion_service import DocumentIngestionService
 class BackgroundIngestionService:
     """
     Execute a document ingestion job in the background.
+
+    The ingestion service is created lazily so that heavy RAG
+    components are not initialized while handling the upload request.
     """
 
     def __init__(
         self,
-        ingestion_service: DocumentIngestionService,
+        ingestion_service_factory: Callable[
+            [], DocumentIngestionService
+        ],
         job_store: IngestionJobStore,
     ) -> None:
-        self.ingestion_service = ingestion_service
+        self.ingestion_service_factory = ingestion_service_factory
         self.job_store = job_store
 
     def execute(
@@ -35,6 +41,9 @@ class BackgroundIngestionService:
     ) -> None:
         """
         Execute one pending ingestion job.
+
+        Heavy ingestion dependencies are initialized only when the
+        background task actually starts.
 
         All execution failures are converted into a failed job state
         rather than being allowed to escape from the background task.
@@ -54,7 +63,9 @@ class BackgroundIngestionService:
         )
 
         try:
-            result = self.ingestion_service.ingest(
+            ingestion_service = self.ingestion_service_factory()
+
+            result = ingestion_service.ingest(
                 file_path=Path(job.file_path),
                 filename=job.filename,
             )

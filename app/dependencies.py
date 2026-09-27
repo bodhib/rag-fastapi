@@ -191,7 +191,7 @@ def get_background_ingestion_service():
     from app.background_ingestion import BackgroundIngestionService
 
     return BackgroundIngestionService(
-        ingestion_service=get_ingestion_service(),
+        ingestion_service_factory=get_ingestion_service,
         job_store=get_ingestion_job_store(),
     )
 
