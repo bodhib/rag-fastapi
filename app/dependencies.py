@@ -2,33 +2,21 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.bm25_retriever import BM25Retriever, LexicalIndex
-from app.postgres_fts_retriever import PostgresFTSRetriever
-from app.chunker import RecursiveChunker
-from app.compressor import ContextCompressor
-from app.config import Settings, settings
-from app.document_processor import DocumentProcessor
-from app.document_store import DocumentStore
-from app.file_storage import UploadedFileStorage
-from app.generator import GeminiGenerator
-from app.hybrid_retriever import HybridRetriever
-from app.ingestion_service import DocumentIngestionService
-from app.query_service import QueryService
-from app.retrieval_index import RetrievalIndexManager
-
+from app.config import settings
 from app.database import SessionLocal
-
-from app.background_ingestion import BackgroundIngestionService
-from app.ingestion_job_store import IngestionJobStore
 
 
 @lru_cache
-def get_document_processor() -> DocumentProcessor:
+def get_document_processor():
+    from app.document_processor import DocumentProcessor
+
     return DocumentProcessor()
 
 
 @lru_cache
-def get_chunker() -> RecursiveChunker:
+def get_chunker():
+    from app.chunker import RecursiveChunker
+
     return RecursiveChunker(
         chunk_size=settings.chunk_size,
         chunk_overlap=settings.chunk_overlap,
@@ -36,7 +24,7 @@ def get_chunker() -> RecursiveChunker:
 
 
 @lru_cache
-def get_embedding_service() -> EmbeddingService:
+def get_embedding_service():
     from app.embeddings import EmbeddingService
 
     return EmbeddingService(
@@ -45,7 +33,7 @@ def get_embedding_service() -> EmbeddingService:
 
 
 @lru_cache
-def get_vector_store() -> ChromaVectorStore:
+def get_vector_store():
     from app.vector_store import ChromaVectorStore
 
     return ChromaVectorStore(
@@ -54,19 +42,23 @@ def get_vector_store() -> ChromaVectorStore:
 
 
 @lru_cache
-def get_bm25_retriever() -> BM25Retriever:
+def get_bm25_retriever():
+    from app.bm25_retriever import BM25Retriever
+
     return BM25Retriever()
 
 
 @lru_cache
-def get_postgres_fts_retriever() -> PostgresFTSRetriever:
+def get_postgres_fts_retriever():
+    from app.postgres_fts_retriever import PostgresFTSRetriever
+
     return PostgresFTSRetriever(
         session_factory=SessionLocal,
     )
 
 
 @lru_cache
-def get_lexical_retriever() -> LexicalIndex:
+def get_lexical_retriever():
     if settings.lexical_backend == "bm25":
         return get_bm25_retriever()
 
@@ -80,7 +72,9 @@ def get_lexical_retriever() -> LexicalIndex:
 
 
 @lru_cache
-def get_retrieval_index_manager() -> RetrievalIndexManager:
+def get_retrieval_index_manager():
+    from app.retrieval_index import RetrievalIndexManager
+
     manager = RetrievalIndexManager(
         lexical_index=get_lexical_retriever(),
     )
@@ -94,21 +88,27 @@ def get_retrieval_index_manager() -> RetrievalIndexManager:
 
 
 @lru_cache
-def get_document_store() -> DocumentStore:
+def get_document_store():
+    from app.document_store import DocumentStore
+
     return DocumentStore(
         session_factory=SessionLocal,
     )
 
 
 @lru_cache
-def get_file_storage() -> UploadedFileStorage:
+def get_file_storage():
+    from app.file_storage import UploadedFileStorage
+
     return UploadedFileStorage(
         storage_directory=settings.upload_directory,
     )
 
 
 @lru_cache
-def get_ingestion_service() -> DocumentIngestionService:
+def get_ingestion_service():
+    from app.ingestion_service import DocumentIngestionService
+
     return DocumentIngestionService(
         document_processor=get_document_processor(),
         chunker=get_chunker(),
@@ -130,7 +130,9 @@ def get_dense_retriever():
 
 
 @lru_cache
-def get_hybrid_retriever() -> HybridRetriever:
+def get_hybrid_retriever():
+    from app.hybrid_retriever import HybridRetriever
+
     return HybridRetriever(
         dense_retriever=get_dense_retriever(),
         lexical_retriever=get_lexical_retriever(),
@@ -138,7 +140,7 @@ def get_hybrid_retriever() -> HybridRetriever:
 
 
 @lru_cache
-def get_reranker() -> CrossEncoderReranker:
+def get_reranker():
     from app.reranker import CrossEncoderReranker
 
     return CrossEncoderReranker(
@@ -147,19 +149,25 @@ def get_reranker() -> CrossEncoderReranker:
 
 
 @lru_cache
-def get_compressor() -> ContextCompressor:
+def get_compressor():
+    from app.compressor import ContextCompressor
+
     return ContextCompressor()
 
 
 @lru_cache
-def get_generator() -> GeminiGenerator:
+def get_generator():
+    from app.generator import GeminiGenerator
+
     return GeminiGenerator(
         config=settings,
     )
 
 
 @lru_cache
-def get_query_service() -> QueryService:
+def get_query_service():
+    from app.query_service import QueryService
+
     return QueryService(
         hybrid_retriever=get_hybrid_retriever(),
         reranker=get_reranker(),
@@ -170,14 +178,18 @@ def get_query_service() -> QueryService:
 
 
 @lru_cache
-def get_ingestion_job_store() -> IngestionJobStore:
+def get_ingestion_job_store():
+    from app.ingestion_job_store import IngestionJobStore
+
     return IngestionJobStore(
         session_factory=SessionLocal,
     )
 
 
 @lru_cache
-def get_background_ingestion_service() -> BackgroundIngestionService:
+def get_background_ingestion_service():
+    from app.background_ingestion import BackgroundIngestionService
+
     return BackgroundIngestionService(
         ingestion_service=get_ingestion_service(),
         job_store=get_ingestion_job_store(),

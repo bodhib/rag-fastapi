@@ -78,12 +78,12 @@ def check_database() -> DependencyCheck:
 
 def check_vector_store() -> DependencyCheck:
     """
-    Verify that Chroma is available and can report its count.
+    Verify that Chroma is available and can read stored chunks.
     """
 
     try:
         vector_store = get_vector_store()
-        vector_store.count
+        vector_store.get_all_chunks()
 
         return DependencyCheck(
             name="vector_store",
@@ -95,8 +95,7 @@ def check_vector_store() -> DependencyCheck:
             name="vector_store",
             ok=False,
         )
-
-
+    
 def check_retrieval_index() -> DependencyCheck:
     """
     Verify that the lexical retrieval index manager can be
