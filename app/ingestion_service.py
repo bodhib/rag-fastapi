@@ -5,6 +5,8 @@ This module coordinates document processing, chunking, embedding,
 vector storage, lexical indexing, and document metadata persistence.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 import hashlib
 from pathlib import Path
@@ -17,9 +19,13 @@ from app.document_store import (
     DuplicateDocumentInProgressError,
     StoredDocument,
 )
-from app.embeddings import EmbeddingService
 from app.retrieval_index import RetrievalIndexManager
-from app.vector_store import VectorStore
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.embeddings import EmbeddingService
+    from app.vector_store import VectorStore
 
 
 @dataclass

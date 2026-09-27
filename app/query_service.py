@@ -5,14 +5,18 @@ This module coordinates retrieval, reranking, context compression,
 and LLM generation for a single user query.
 """
 
-from dataclasses import dataclass
+from __future__ import annotations
 
-from app.compressor import ContextCompressor
-from app.generator import GenerationResult, GeminiGenerator
-from app.hybrid_retriever import HybridRetriever
-from app.reranker import CrossEncoderReranker, RerankedResult
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from app.config import Settings, settings
+
+if TYPE_CHECKING:
+    from app.compressor import ContextCompressor
+    from app.generator import GenerationResult, GeminiGenerator
+    from app.hybrid_retriever import HybridRetriever
+    from app.reranker import CrossEncoderReranker, RerankedResult
 
 
 @dataclass

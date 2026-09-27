@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from uuid import uuid4
 
 from fastapi import (
@@ -22,16 +24,12 @@ from app.security import (
     require_role,
 )
 
-from app.background_ingestion import BackgroundIngestionService
 from app.dependencies import (
     get_background_ingestion_service,
     get_file_storage,
     get_ingestion_job_store,
     get_query_service,
 )
-from app.file_storage import UploadedFileStorage
-from app.ingestion_job_store import IngestionJob, IngestionJobStore
-from app.query_service import QueryService
 from app.schemas import (
     Citation,
     DocumentUploadResponse,
@@ -40,6 +38,14 @@ from app.schemas import (
     QueryResponse,
 )
 from app.lifecycle import lifespan
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.background_ingestion import BackgroundIngestionService
+    from app.file_storage import UploadedFileStorage
+    from app.ingestion_job_store import IngestionJob, IngestionJobStore
+    from app.query_service import QueryService
 
 
 app = FastAPI(
