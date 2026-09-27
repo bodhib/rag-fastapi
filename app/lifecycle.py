@@ -3,20 +3,20 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.dependencies import (
-clear_dependency_caches,
-get_generator,
-get_retrieval_index_manager,
-)
+from app.dependencies import clear_dependency_caches
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    get_retrieval_index_manager()
-    get_generator()
+    """
+    Manage application startup and shutdown.
+
+    Heavy RAG components are initialized lazily when first needed
+    rather than during application startup. This keeps startup memory
+    usage low and allows health endpoints to become available quickly.
+    """
 
     try:
         yield
     finally:
         clear_dependency_caches()
-

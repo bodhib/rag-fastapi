@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import lru_cache
 
 from app.bm25_retriever import BM25Retriever, LexicalIndex
@@ -7,15 +9,12 @@ from app.compressor import ContextCompressor
 from app.config import Settings, settings
 from app.document_processor import DocumentProcessor
 from app.document_store import DocumentStore
-from app.embeddings import EmbeddingService
 from app.file_storage import UploadedFileStorage
 from app.generator import GeminiGenerator
 from app.hybrid_retriever import HybridRetriever
 from app.ingestion_service import DocumentIngestionService
 from app.query_service import QueryService
 from app.retrieval_index import RetrievalIndexManager
-from app.reranker import CrossEncoderReranker
-from app.vector_store import ChromaVectorStore
 
 from app.database import SessionLocal
 
@@ -38,6 +37,8 @@ def get_chunker() -> RecursiveChunker:
 
 @lru_cache
 def get_embedding_service() -> EmbeddingService:
+    from app.embeddings import EmbeddingService
+
     return EmbeddingService(
         config=settings,
     )
@@ -45,6 +46,8 @@ def get_embedding_service() -> EmbeddingService:
 
 @lru_cache
 def get_vector_store() -> ChromaVectorStore:
+    from app.vector_store import ChromaVectorStore
+
     return ChromaVectorStore(
         persist_directory=settings.chroma_directory,
     )
@@ -54,11 +57,13 @@ def get_vector_store() -> ChromaVectorStore:
 def get_bm25_retriever() -> BM25Retriever:
     return BM25Retriever()
 
+
 @lru_cache
 def get_postgres_fts_retriever() -> PostgresFTSRetriever:
     return PostgresFTSRetriever(
         session_factory=SessionLocal,
     )
+
 
 @lru_cache
 def get_lexical_retriever() -> LexicalIndex:
@@ -72,6 +77,7 @@ def get_lexical_retriever() -> LexicalIndex:
         f"Unsupported lexical backend: "
         f"{settings.lexical_backend}"
     )
+
 
 @lru_cache
 def get_retrieval_index_manager() -> RetrievalIndexManager:
@@ -128,12 +134,13 @@ def get_hybrid_retriever() -> HybridRetriever:
     return HybridRetriever(
         dense_retriever=get_dense_retriever(),
         lexical_retriever=get_lexical_retriever(),
-
     )
 
 
 @lru_cache
 def get_reranker() -> CrossEncoderReranker:
+    from app.reranker import CrossEncoderReranker
+
     return CrossEncoderReranker(
         config=settings,
     )
@@ -161,6 +168,7 @@ def get_query_service() -> QueryService:
         config=settings,
     )
 
+
 @lru_cache
 def get_ingestion_job_store() -> IngestionJobStore:
     return IngestionJobStore(
@@ -174,6 +182,7 @@ def get_background_ingestion_service() -> BackgroundIngestionService:
         ingestion_service=get_ingestion_service(),
         job_store=get_ingestion_job_store(),
     )
+
 
 def clear_dependency_caches() -> None:
     """
