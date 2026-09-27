@@ -140,6 +140,43 @@ def query(
 
 
 @app.post(
+    "/debug/job-test",
+    dependencies=[
+        Depends(
+            require_role(UserRole.ADMIN)
+        )
+    ],
+)
+def debug_job_test(
+    job_store: IngestionJobStore = Depends(
+        get_ingestion_job_store
+    ),
+) -> dict:
+    """
+    Temporary production diagnostic endpoint.
+
+    Creates a minimal ingestion job without file upload
+    or any RAG components.
+    """
+
+    job_id = f"debug_{uuid4().hex}"
+
+    job_store.create(
+        IngestionJob(
+            job_id=job_id,
+            filename="debug.txt",
+            file_path="/tmp/debug.txt",
+            status="pending",
+        )
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "pending",
+    }
+
+
+@app.post(
     "/documents/upload",
     response_model=DocumentUploadResponse,
     status_code=202,
