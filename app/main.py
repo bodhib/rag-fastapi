@@ -264,6 +264,27 @@ def debug_upload_test(
         "content_type": file.content_type,
     }
 
+@app.post("/debug/storage-test")
+def debug_storage_test(
+    file: UploadFile = File(...),
+    file_storage: UploadedFileStorage = Depends(get_file_storage),
+) -> dict:
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file must have a filename",
+        )
+
+    stored_path = file_storage.save(
+        source_file=file.file,
+        filename=file.filename,
+    )
+
+    return {
+        "filename": file.filename,
+        "stored_path": str(stored_path),
+    }
+
 @app.get(
     "/documents/jobs/{job_id}",
     response_model=IngestionJobResponse,
