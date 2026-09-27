@@ -40,6 +40,7 @@ from app.schemas import (
 from app.lifecycle import lifespan
 
 from app.ingestion_job_store import IngestionJob
+from app.file_storage import UploadedFileStorage
 
 from typing import TYPE_CHECKING
 
@@ -254,6 +255,14 @@ def upload_document(
         status="pending",
     )
 
+@app.post("/debug/upload-test")
+def debug_upload_test(
+    file: UploadFile = File(...),
+) -> dict:
+    return {
+        "filename": file.filename,
+        "content_type": file.content_type,
+    }
 
 @app.get(
     "/documents/jobs/{job_id}",
