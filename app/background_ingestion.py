@@ -63,11 +63,24 @@ class BackgroundIngestionService:
         )
 
         try:
+            print(f"[INGESTION] Starting job {job_id}", flush=True)
+
             ingestion_service = self.ingestion_service_factory()
+
+            print(
+                f"[INGESTION] Ingestion service created for job {job_id}",
+                flush=True,
+            )
+
 
             result = ingestion_service.ingest(
                 file_path=Path(job.file_path),
                 filename=job.filename,
+            )
+
+            print(
+                f"[INGESTION] Ingestion completed for job {job_id}",
+                flush=True,
             )
 
         except Exception as exc:
