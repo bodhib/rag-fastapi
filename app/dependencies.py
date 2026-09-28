@@ -140,6 +140,20 @@ def get_ingestion_service():
         document_store=document_store,
     )
 
+def create_ingestion_service():
+    from app.ingestion_service import DocumentIngestionService
+
+    print("[FACTORY] create_ingestion_service entered", flush=True)
+
+    return DocumentIngestionService(
+        document_processor=get_document_processor(),
+        chunker=get_chunker(),
+        embedding_service=get_embedding_service(),
+        vector_store=get_vector_store(),
+        retrieval_index_manager=get_retrieval_index_manager(),
+        document_store=get_document_store(),
+    )
+
 
 @lru_cache
 def get_dense_retriever():
@@ -213,7 +227,7 @@ def  get_background_ingestion_service():
     from app.background_ingestion import BackgroundIngestionService
 
     return BackgroundIngestionService(
-        ingestion_service_factory=get_ingestion_service,
+        ingestion_service_factory=create_ingestion_service,
         job_store_factory=get_ingestion_job_store,
     )
 
