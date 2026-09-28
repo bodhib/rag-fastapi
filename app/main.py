@@ -189,6 +189,9 @@ def upload_document(
     file: UploadFile = File(...),
     file_storage: UploadedFileStorage = Depends(get_file_storage),
     job_store: IngestionJobStore = Depends(get_ingestion_job_store),
+    background_ingestion_service: BackgroundIngestionService = Depends(
+        get_background_ingestion_service
+    ),
 ) -> DocumentUploadResponse:
 
     if not file.filename:
@@ -212,6 +215,8 @@ def upload_document(
             status="pending",
         )
     )
+
+    # IMPORTANT: do not add the background task yet.
 
     return DocumentUploadResponse(
         job_id=job_id,
