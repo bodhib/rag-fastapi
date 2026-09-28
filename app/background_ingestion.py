@@ -1,17 +1,23 @@
+from __future__ import annotations
+
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from app.ingestion_job_store import IngestionJobStore
-from app.ingestion_service import DocumentIngestionService
+if TYPE_CHECKING:
+    from app.ingestion_job_store import IngestionJobStore
+    from app.ingestion_service import DocumentIngestionService
 
 
 class BackgroundIngestionService:
     """
-    Execute a document ingestion job in the background.
+    Execute an ingestion job in the background.
 
-    Both the ingestion service and job store are created lazily,
-    only when the background job actually executes.
+    Heavy ingestion components are not imported or initialized
+    while FastAPI resolves this dependency. They are created only
+   
+when execute() actually runs.
     """
 
     def __init__(
