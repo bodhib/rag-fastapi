@@ -192,7 +192,7 @@ def get_background_ingestion_service():
 
     return BackgroundIngestionService(
         ingestion_service_factory=get_ingestion_service,
-        job_store=get_ingestion_job_store(),
+        job_store_factory=get_ingestion_job_store,
     )
 
 
