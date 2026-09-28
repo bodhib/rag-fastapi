@@ -23,3 +23,5 @@ sqlalchemy
 psycopg[binary]
 
 alembic
+
+psutil

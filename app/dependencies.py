@@ -141,9 +141,30 @@ def get_ingestion_service():
     )
 
 def create_ingestion_service():
+    import os
+    import psutil
+
+    process = psutil.Process(os.getpid())
+
+    print(
+        f"[FACTORY] Memory before ingestion import: "
+        f"{process.memory_info().rss / 1024 / 1024:.1f} MB",
+        flush=True,
+    )
+
     print("[FACTORY] create_ingestion_service entered", flush=True)
-    
+
     from app.ingestion_service import DocumentIngestionService
+
+    process = psutil.Process(os.getpid())
+
+    print(
+        f"[FACTORY] Memory after ingestion import: "
+        f"{process.memory_info().rss / 1024 / 1024:.1f} MB",
+        flush=True,
+    )
+
+    print("[FACTORY] DocumentIngestionService imported", flush=True)
 
     return DocumentIngestionService(
         document_processor=get_document_processor(),
