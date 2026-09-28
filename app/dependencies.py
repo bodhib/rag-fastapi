@@ -109,13 +109,35 @@ def get_file_storage():
 def get_ingestion_service():
     from app.ingestion_service import DocumentIngestionService
 
+    print("[DEPENDENCY] Creating DocumentIngestionService", flush=True)
+
+    print("[DEPENDENCY] Getting document processor", flush=True)
+    document_processor = get_document_processor()
+
+    print("[DEPENDENCY] Getting chunker", flush=True)
+    chunker = get_chunker()
+
+    print("[DEPENDENCY] Getting embedding service", flush=True)
+    embedding_service = get_embedding_service()
+
+    print("[DEPENDENCY] Getting vector store", flush=True)
+    vector_store = get_vector_store()
+
+    print("[DEPENDENCY] Getting retrieval index manager", flush=True)
+    retrieval_index_manager = get_retrieval_index_manager()
+
+    print("[DEPENDENCY] Getting document store", flush=True)
+    document_store = get_document_store()
+
+    print("[DEPENDENCY] All ingestion dependencies ready", flush=True)
+
     return DocumentIngestionService(
-        document_processor=get_document_processor(),
-        chunker=get_chunker(),
-        embedding_service=get_embedding_service(),
-        vector_store=get_vector_store(),
-        retrieval_index_manager=get_retrieval_index_manager(),
-        document_store=get_document_store(),
+        document_processor=document_processor,
+        chunker=chunker,
+        embedding_service=embedding_service,
+        vector_store=vector_store,
+        retrieval_index_manager=retrieval_index_manager,
+        document_store=document_store,
     )
 
 
@@ -187,7 +209,7 @@ def get_ingestion_job_store():
 
 
 @lru_cache
-def get_background_ingestion_service():
+def  get_background_ingestion_service():
     from app.background_ingestion import BackgroundIngestionService
 
     return BackgroundIngestionService(
