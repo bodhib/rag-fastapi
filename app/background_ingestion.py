@@ -33,14 +33,23 @@ when execute() actually runs.
         self.job_store_factory = job_store_factory
 
     def execute(self, job_id: str) -> None:
+        print(f"[INGESTION] Starting job {job_id}", flush=True)
+
         job_store = self.job_store_factory()
+
+        print(f"[INGESTION] Job store ready: {job_id}", flush=True)
 
         job = job_store.get(job_id)
 
         if job is None:
+            print(f"[INGESTION] Job not found: {job_id}", flush=True)
             return
 
         if job.status != "pending":
+            print(
+                f"[INGESTION] Job {job_id} has status {job.status}; skipping",
+                flush=True,
+            )
             return
 
         job_store.mark_processing(
@@ -48,15 +57,42 @@ when execute() actually runs.
             started_at=datetime.now(),
         )
 
+        print(f"[INGESTION] Job marked processing: {job_id}", flush=True)
+
         try:
+            print(
+                f"[INGESTION] Creating ingestion service: {job_id}",
+                flush=True,
+            )
+
             ingestion_service = self.ingestion_service_factory()
+
+            print(
+                f"[INGESTION] Ingestion service ready: {job_id}",
+                flush=True,
+            )
+
+            print(
+                f"[INGESTION] Starting ingest: {job_id}",
+                flush=True,
+            )
 
             result = ingestion_service.ingest(
                 file_path=Path(job.file_path),
                 filename=job.filename,
             )
 
+            print(
+                f"[INGESTION] Ingest finished: {job_id}",
+                flush=True,
+            )
+
         except Exception as exc:
+            print(
+                f"[INGESTION] Ingestion failed: {job_id}: {exc!r}",
+                flush=True,
+            )
+
             job_store.mark_failed(
                 job_id=job_id,
                 error_message=str(exc),
@@ -70,4 +106,9 @@ when execute() actually runs.
             page_count=result.page_count,
             chunk_count=result.chunk_count,
             completed_at=datetime.now(),
+        )
+
+        print(
+            f"[INGESTION] Job completed: {job_id}",
+            flush=True,
         )
