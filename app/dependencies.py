@@ -223,13 +223,42 @@ def get_ingestion_job_store():
 
 
 @lru_cache
-def  get_background_ingestion_service():
+def get_background_ingestion_service():
     from app.background_ingestion import BackgroundIngestionService
 
-    return BackgroundIngestionService(
+    print(
+        "[DEPENDENCY] create_ingestion_service object:",
+        create_ingestion_service,
+        flush=True,
+    )
+    print(
+        "[DEPENDENCY] create_ingestion_service name:",
+        getattr(create_ingestion_service, "__name__", None),
+        flush=True,
+    )
+    print(
+        "[DEPENDENCY] create_ingestion_service module:",
+        getattr(create_ingestion_service, "__module__", None),
+        flush=True,
+    )
+
+    service = BackgroundIngestionService(
         ingestion_service_factory=create_ingestion_service,
         job_store_factory=get_ingestion_job_store,
     )
+
+    print(
+        "[DEPENDENCY] Background service factory stored:",
+        service.ingestion_service_factory,
+        flush=True,
+    )
+    print(
+        "[DEPENDENCY] Background service factory name:",
+        getattr(service.ingestion_service_factory, "__name__", None),
+        flush=True,
+    )
+
+    return service
 
 
 def clear_dependency_caches() -> None:
