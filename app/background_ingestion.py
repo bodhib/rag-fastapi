@@ -61,14 +61,42 @@ when execute() actually runs.
 
         try:
             print(
-                f"[INGESTION] Creating ingestion service: {job_id}",
+                f"[INGESTION] About to call ingestion_service_factory: {job_id}",
+                flush=True,
+            )
+
+            print(
+                f"[INGESTION] Factory object: {self.ingestion_service_factory!r}",
+                flush=True,
+            )
+
+            print(
+                f"[INGESTION] Factory module: "
+                f"{getattr(self.ingestion_service_factory, '__module__', None)}",
+                flush=True,
+            )
+
+            print(
+                f"[INGESTION] Factory name: "
+                f"{getattr(self.ingestion_service_factory, '__name__', None)}",
+                flush=True,
+            )
+
+            print(
+                f"[INGESTION] Calling ingestion_service_factory NOW: {job_id}",
                 flush=True,
             )
 
             ingestion_service = self.ingestion_service_factory()
 
             print(
-                f"[INGESTION] Ingestion service ready: {job_id}",
+                f"[INGESTION] ingestion_service_factory RETURNED: {job_id}",
+                flush=True,
+            )
+
+            print(
+                f"[INGESTION] Ingestion service type: "
+                f"{type(ingestion_service)!r}",
                 flush=True,
             )
 
