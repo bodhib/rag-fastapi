@@ -141,9 +141,9 @@ def get_ingestion_service():
     )
 
 def create_ingestion_service():
-    from app.ingestion_service import DocumentIngestionService
-
     print("[FACTORY] create_ingestion_service entered", flush=True)
+    
+    from app.ingestion_service import DocumentIngestionService
 
     return DocumentIngestionService(
         document_processor=get_document_processor(),
