@@ -185,6 +185,7 @@ def debug_job_test(
     dependencies=[Depends(require_role(UserRole.ADMIN))],
 )
 def upload_document(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     file_storage: UploadedFileStorage = Depends(get_file_storage),
     job_store: IngestionJobStore = Depends(get_ingestion_job_store),
@@ -215,7 +216,10 @@ def upload_document(
         )
     )
 
-    # IMPORTANT: do not add the background task yet.
+    background_tasks.add_task(
+        background_ingestion_service.execute,
+        job_id,
+    )
 
     return DocumentUploadResponse(
         job_id=job_id,
