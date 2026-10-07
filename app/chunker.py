@@ -2,16 +2,15 @@
 Recursive document chunking.
 
 This module converts processed document pages into smaller chunks
-while preserving document and page-level metadata.
+while preserving document, knowledge-base, and page-level metadata.
 """
 
 from dataclasses import dataclass
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from app.document_processor import ProcessedPage
-
 from app.config import Settings, settings
+from app.document_processor import ProcessedPage
 
 
 @dataclass
@@ -25,6 +24,7 @@ class DocumentChunk:
         source: Original document filename.
         page_number: One-based source page number.
         chunk_index: Zero-based index across the entire document.
+        knowledge_base_id: Knowledge base containing the document.
     """
 
     doc_id: str
@@ -32,6 +32,7 @@ class DocumentChunk:
     source: str
     page_number: int
     chunk_index: int
+    knowledge_base_id: str = "kb_default"
 
 
 class RecursiveChunker:
@@ -40,12 +41,11 @@ class RecursiveChunker:
     """
 
     def __init__(
-    self,
-    chunk_size: int | None = None,
-    chunk_overlap: int | None = None,
-    config: Settings | None = None,
-) -> None:
-
+        self,
+        chunk_size: int | None = None,
+        chunk_overlap: int | None = None,
+        config: Settings | None = None,
+    ) -> None:
         self.config = config or settings
 
         resolved_chunk_size = (
@@ -94,27 +94,27 @@ class RecursiveChunker:
         self,
         doc_id: str,
         pages: list[ProcessedPage],
+        knowledge_base_id: str,
     ) -> list[DocumentChunk]:
         """
-        Create chunks for a document.
+        Split processed pages into document chunks.
 
-        Args:
-            doc_id: Unique identifier for the document.
-            pages: Processed pages belonging to the document.
-
-        Returns:
-            A list of document chunks.
-
-        Raises:
-            ValueError: If doc_id or pages are invalid.
+        All generated chunks inherit the supplied knowledge base ID.
         """
 
         if not doc_id.strip():
-            raise ValueError("doc_id cannot be empty")
+            raise ValueError(
+                "doc_id cannot be empty"
+            )
 
         if not pages:
             raise ValueError(
                 "Cannot create chunks from an empty page list"
+            )
+
+        if not knowledge_base_id.strip():
+            raise ValueError(
+                "knowledge_base_id cannot be empty"
             )
 
         chunks: list[DocumentChunk] = []
@@ -139,6 +139,7 @@ class RecursiveChunker:
                         source=page.source,
                         page_number=page.page_number,
                         chunk_index=chunk_index,
+                        knowledge_base_id=knowledge_base_id,
                     )
                 )
 

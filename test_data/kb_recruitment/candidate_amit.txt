@@ -1,0 +1,23 @@
+Candidate Name: Amit Verma
+
+Current Role: Backend Developer
+
+Location: Pune, India
+
+Total Experience: 3 years
+
+Skills:
+Python
+FastAPI
+PostgreSQL
+Docker
+Git
+REST APIs
+
+Education:
+B.Tech in Information Technology
+
+Notice Period: 15 days
+
+Summary:
+Amit is a backend developer with 3 years of experience building REST APIs using Python and FastAPI. He has worked with PostgreSQL, Docker and Git on backend applications.

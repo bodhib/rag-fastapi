@@ -1,0 +1,23 @@
+Candidate Name: Sneha Roy
+
+Current Role: Backend Engineer
+
+Location: Bengaluru, India
+
+Total Experience: 5 years
+
+Skills:
+Python
+FastAPI
+PostgreSQL
+Docker
+AWS
+REST APIs
+
+Education:
+B.Tech in Computer Science
+
+Notice Period: 20 days
+
+Summary:
+Sneha is a backend engineer with 5 years of experience developing Python and FastAPI applications. She has worked extensively with PostgreSQL, Docker, AWS and REST APIs.

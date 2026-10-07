@@ -21,6 +21,17 @@ from app.dependencies import (
     get_postgres_fts_retriever,
     get_retrieval_index_manager,
 )
+
+from app.dependencies import (
+    get_embedding_service,
+    get_reranker,
+)
+
+from app.dependencies import (
+    get_candidate_store,
+    get_recruiter_search_service,
+)
+
 from app.vector_store import VectorStore
 
 from app.postgres_fts_retriever import PostgresFTSRetriever
@@ -194,14 +205,17 @@ def test_get_embedding_service_uses_configured_model(
     monkeypatch,
 ):
     import app.dependencies as dependencies
+    import app.embeddings as embeddings
 
-    from app.config import Settings
+    created = {}
+
+    class FakeEmbeddingService:
+        def __init__(self, *, config):
+            created["config"] = config
 
     test_settings = Settings(
         embedding_model="test-embedding-model",
     )
-
-    dependencies.get_embedding_service.cache_clear()
 
     monkeypatch.setattr(
         dependencies,
@@ -209,19 +223,25 @@ def test_get_embedding_service_uses_configured_model(
         test_settings,
     )
 
-    class FakeEmbeddingService:
-        def __init__(self, config=None):
-            self.config = config
-
     monkeypatch.setattr(
-        dependencies,
+        embeddings,
         "EmbeddingService",
         FakeEmbeddingService,
     )
 
-    service = dependencies.get_embedding_service()
+    dependencies.get_embedding_service.cache_clear()
 
-    assert service.config is test_settings
+    result = dependencies.get_embedding_service()
+
+    assert isinstance(
+        result,
+        FakeEmbeddingService,
+    )
+
+    assert (
+        created["config"].embedding_model
+        == "test-embedding-model"
+    )
 
     dependencies.get_embedding_service.cache_clear()
 
@@ -230,14 +250,17 @@ def test_get_reranker_uses_configured_settings(
     monkeypatch,
 ):
     import app.dependencies as dependencies
+    import app.reranker as reranker
 
-    from app.config import Settings
+    created = {}
+
+    class FakeCrossEncoderReranker:
+        def __init__(self, *, config):
+            created["config"] = config
 
     test_settings = Settings(
         reranker_model="test-reranker-model",
     )
-
-    dependencies.get_reranker.cache_clear()
 
     monkeypatch.setattr(
         dependencies,
@@ -245,22 +268,27 @@ def test_get_reranker_uses_configured_settings(
         test_settings,
     )
 
-    class FakeReranker:
-        def __init__(self, config=None):
-            self.config = config
-
     monkeypatch.setattr(
-        dependencies,
+        reranker,
         "CrossEncoderReranker",
-        FakeReranker,
+        FakeCrossEncoderReranker,
     )
-
-    reranker = dependencies.get_reranker()
-
-    assert reranker.config is test_settings
 
     dependencies.get_reranker.cache_clear()
 
+    result = dependencies.get_reranker()
+
+    assert isinstance(
+        result,
+        FakeCrossEncoderReranker,
+    )
+
+    assert (
+        created["config"].reranker_model
+        == "test-reranker-model"
+    )
+
+    dependencies.get_reranker.cache_clear()
 
 def test_retrieval_index_manager_uses_abstractions(
     monkeypatch,
@@ -371,3 +399,120 @@ def test_settings_default_lexical_backend(
     assert Settings(
         _env_file=None
     ).lexical_backend == "bm25"
+
+def test_get_search_service_uses_configured_dependencies(
+    monkeypatch,
+):
+    import app.dependencies as dependencies
+
+    from app.config import Settings
+
+    created = {}
+
+    class FakeSearchService:
+        def __init__(
+            self,
+            *,
+            hybrid_retriever,
+            reranker,
+            config,
+        ):
+            created["hybrid_retriever"] = (
+                hybrid_retriever
+            )
+            created["reranker"] = reranker
+            created["config"] = config
+
+    fake_hybrid = object()
+    fake_reranker = object()
+
+    monkeypatch.setattr(
+        dependencies,
+        "get_hybrid_retriever",
+        lambda: fake_hybrid,
+    )
+
+    monkeypatch.setattr(
+        dependencies,
+        "get_reranker",
+        lambda: fake_reranker,
+    )
+
+    monkeypatch.setattr(
+        dependencies,
+        "settings",
+        Settings(
+            retrieval_top_k=17,
+        ),
+    )
+
+    import app.search_service as search_service
+
+    monkeypatch.setattr(
+        search_service,
+        "SearchService",
+        FakeSearchService,
+    )
+
+    dependencies.get_search_service.cache_clear()
+
+    result = dependencies.get_search_service()
+
+    assert isinstance(
+        result,
+        FakeSearchService,
+    )
+
+    assert (
+        created["hybrid_retriever"]
+        is fake_hybrid
+    )
+
+    assert (
+        created["reranker"]
+        is fake_reranker
+    )
+
+    assert (
+        created["config"].retrieval_top_k
+        == 17
+    )
+
+    dependencies.get_search_service.cache_clear()
+
+
+def test_clear_dependency_caches_clears_search_service():
+    import app.dependencies as dependencies
+
+    dependencies.get_search_service.cache_clear()
+
+    first = dependencies.get_search_service()
+
+    dependencies.clear_dependency_caches()
+
+    second = dependencies.get_search_service()
+
+    assert first is not second
+
+    dependencies.clear_dependency_caches()
+
+def test_get_candidate_store_is_cached():
+    from app.dependencies import (
+        get_candidate_store,
+    )
+
+    first = get_candidate_store()
+    second = get_candidate_store()
+
+    assert first is second
+
+
+def test_get_recruiter_search_service_is_cached():
+    from app.dependencies import (
+        get_recruiter_search_service,
+    )
+
+    first = get_recruiter_search_service()
+    second = get_recruiter_search_service()
+
+    assert first is second    

@@ -1,0 +1,19 @@
+RESUME — ARJUN MEHTA
+Location: Bengaluru, India
+Current title: Senior Backend Engineer
+Current company: FinCloud Technologies
+Experience: 7.5 years
+
+Skills: Python, FastAPI, Django, PostgreSQL, Redis, Kafka, Docker, Kubernetes, AWS, REST APIs, microservices
+
+Summary
+Backend engineer with 7.5 years of experience building high-throughput financial and SaaS services. Strong experience designing Python APIs, PostgreSQL data models, asynchronous processing, containerized deployments, and AWS infrastructure.
+
+Recent work
+Led a team responsible for a payment-processing platform using Python, FastAPI, PostgreSQL, Kafka and Kubernetes. Improved API latency and introduced automated deployment pipelines.
+
+Education
+B.Tech in Computer Science, Visvesvaraya Technological University.
+
+Availability
+30 days notice.

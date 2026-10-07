@@ -1,0 +1,19 @@
+ACME Technologies
+Engineering Handbook
+2026 Edition
+
+Backend services should preferably use Python and FastAPI where appropriate.
+
+All production APIs must include automated tests for critical business logic.
+
+Code changes should be reviewed by at least one other engineer before being merged into the main branch.
+
+Production services should expose health-check endpoints.
+
+Applications should log important operational events without exposing passwords, API keys, authentication tokens, or other sensitive information.
+
+Database credentials and API keys must be stored using environment variables or an approved secrets-management system.
+
+Engineering teams should use Git for source-code version control.
+
+Pull requests should describe the purpose of the change, important implementation details, and testing performed.

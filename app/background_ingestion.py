@@ -14,40 +14,81 @@ class BackgroundIngestionService:
     """
     Execute an ingestion job in the background.
 
-    Heavy ingestion components are not imported or initialized
-    while FastAPI resolves this dependency. They are created only
-   
-when execute() actually runs.
+    Production code can provide factories so heavy ingestion components
+    are created only when execute() runs.
+
+    Tests may provide already-created ingestion_service and job_store
+    instances for lightweight dependency injection.
     """
 
     def __init__(
         self,
+        ingestion_service: DocumentIngestionService | None = None,
+        job_store: IngestionJobStore | None = None,
         ingestion_service_factory: Callable[
             [], DocumentIngestionService
-        ],
+        ] | None = None,
         job_store_factory: Callable[
             [], IngestionJobStore
-        ],
+        ] | None = None,
     ) -> None:
+        self.ingestion_service = ingestion_service
+        self.job_store = job_store
+
         self.ingestion_service_factory = ingestion_service_factory
         self.job_store_factory = job_store_factory
+
+        if self.job_store is None and self.job_store_factory is None:
+            raise ValueError(
+                "Either job_store or job_store_factory must be provided"
+            )
+
+        if (
+            self.ingestion_service is None
+            and self.ingestion_service_factory is None
+        ):
+            raise ValueError(
+                "Either ingestion_service or "
+                "ingestion_service_factory must be provided"
+            )
+
+    def _get_job_store(self) -> IngestionJobStore:
+        if self.job_store is not None:
+            return self.job_store
+
+        assert self.job_store_factory is not None
+        return self.job_store_factory()
+
+    def _get_ingestion_service(self) -> DocumentIngestionService:
+        if self.ingestion_service is not None:
+            return self.ingestion_service
+
+        assert self.ingestion_service_factory is not None
+        return self.ingestion_service_factory()
 
     def execute(self, job_id: str) -> None:
         print(f"[INGESTION] Starting job {job_id}", flush=True)
 
-        job_store = self.job_store_factory()
+        job_store = self._get_job_store()
 
-        print(f"[INGESTION] Job store ready: {job_id}", flush=True)
+        print(
+            f"[INGESTION] Job store ready: {job_id}",
+            flush=True,
+        )
 
         job = job_store.get(job_id)
 
         if job is None:
-            print(f"[INGESTION] Job not found: {job_id}", flush=True)
+            print(
+                f"[INGESTION] Job not found: {job_id}",
+                flush=True,
+            )
             return
 
         if job.status != "pending":
             print(
-                f"[INGESTION] Job {job_id} has status {job.status}; skipping",
+                f"[INGESTION] Job {job_id} has status "
+                f"{job.status}; skipping",
                 flush=True,
             )
             return
@@ -57,57 +98,23 @@ when execute() actually runs.
             started_at=datetime.now(),
         )
 
-        print(f"[INGESTION] Job marked processing: {job_id}", flush=True)
+        print(
+            f"[INGESTION] Job marked processing: {job_id}",
+            flush=True,
+        )
 
         try:
             print(
-                f"[INGESTION] About to call ingestion_service_factory: {job_id}",
+                f"[INGESTION] Starting ingestion: {job_id}",
                 flush=True,
             )
 
-            print(
-                f"[INGESTION] Factory object: {self.ingestion_service_factory!r}",
-                flush=True,
-            )
-
-            print(
-                f"[INGESTION] Factory module: "
-                f"{getattr(self.ingestion_service_factory, '__module__', None)}",
-                flush=True,
-            )
-
-            print(
-                f"[INGESTION] Factory name: "
-                f"{getattr(self.ingestion_service_factory, '__name__', None)}",
-                flush=True,
-            )
-
-            print(
-                f"[INGESTION] Calling ingestion_service_factory NOW: {job_id}",
-                flush=True,
-            )
-
-            ingestion_service = self.ingestion_service_factory()
-
-            print(
-                f"[INGESTION] ingestion_service_factory RETURNED: {job_id}",
-                flush=True,
-            )
-
-            print(
-                f"[INGESTION] Ingestion service type: "
-                f"{type(ingestion_service)!r}",
-                flush=True,
-            )
-
-            print(
-                f"[INGESTION] Starting ingest: {job_id}",
-                flush=True,
-            )
+            ingestion_service = self._get_ingestion_service()
 
             result = ingestion_service.ingest(
                 file_path=Path(job.file_path),
                 filename=job.filename,
+                knowledge_base_id=job.knowledge_base_id,
             )
 
             print(
@@ -117,7 +124,8 @@ when execute() actually runs.
 
         except Exception as exc:
             print(
-                f"[INGESTION] Ingestion failed: {job_id}: {exc!r}",
+                f"[INGESTION] Ingestion failed: "
+                f"{job_id}: {exc!r}",
                 flush=True,
             )
 
@@ -126,6 +134,7 @@ when execute() actually runs.
                 error_message=str(exc),
                 completed_at=datetime.now(),
             )
+
             return
 
         job_store.mark_completed(

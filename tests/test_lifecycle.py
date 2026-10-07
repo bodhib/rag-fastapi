@@ -1,50 +1,74 @@
 import asyncio
 
-import app.lifecycle as lifecycle
+import pytest
+
+from app.lifecycle import lifespan
 
 
-def test_lifespan_initializes_retrieval_index(monkeypatch):
-    calls = []
+class FakeApp:
+    pass
 
-    def fake_get_retrieval_index_manager():
-        calls.append("initialized")
+
+def test_lifespan_allows_application_to_start():
+    app = FakeApp()
+
+    async def run_test():
+        async with lifespan(app):
+            assert True
+
+    asyncio.run(run_test())
+
+
+def test_lifespan_clears_dependency_caches_on_shutdown(
+    monkeypatch,
+):
+    import app.lifecycle as lifecycle
+
+    cleanup_calls = []
+
+    def fake_clear_dependency_caches():
+        cleanup_calls.append(True)
 
     monkeypatch.setattr(
         lifecycle,
-        "get_retrieval_index_manager",
-        fake_get_retrieval_index_manager,
+        "clear_dependency_caches",
+        fake_clear_dependency_caches,
     )
 
-    async def run_lifespan():
-        async with lifecycle.lifespan(None):
-            pass
+    app = FakeApp()
 
-    asyncio.run(run_lifespan())
+    async def run_test():
+        async with lifecycle.lifespan(app):
+            assert cleanup_calls == []
 
-    assert calls == ["initialized"]
+    asyncio.run(run_test())
 
-    def test_lifespan_runs_startup_and_shutdown(monkeypatch):
-        events = []
+    assert cleanup_calls == [True]
 
-        def fake_get_retrieval_index_manager():
-            events.append("startup")
 
-        monkeypatch.setattr(
-            lifecycle,
-            "get_retrieval_index_manager",
-            fake_get_retrieval_index_manager,
-        )
+def test_lifespan_clears_dependency_caches_when_application_fails(
+    monkeypatch,
+):
+    import app.lifecycle as lifecycle
 
-        async def run_lifespan():
-            async with lifecycle.lifespan(None):
-                events.append("running")
+    cleanup_calls = []
 
-            events.append("shutdown")
+    def fake_clear_dependency_caches():
+        cleanup_calls.append(True)
 
-        asyncio.run(run_lifespan())
+    monkeypatch.setattr(
+        lifecycle,
+        "clear_dependency_caches",
+        fake_clear_dependency_caches,
+    )
 
-        assert events == [
-            "startup",
-            "running",
-            "shutdown",
-        ]
+    app = FakeApp()
+
+    async def run_test():
+        with pytest.raises(RuntimeError, match="application failure"):
+            async with lifecycle.lifespan(app):
+                raise RuntimeError("application failure")
+
+    asyncio.run(run_test())
+
+    assert cleanup_calls == [True]

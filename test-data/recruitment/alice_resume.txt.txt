@@ -1,0 +1,49 @@
+Alice Sen
+Senior Python Backend Engineer
+Kolkata, India
+
+Professional Summary
+
+Backend engineer with 6 years of professional software development experience, specializing in Python backend systems and API development.
+
+Technical Skills
+
+Python
+FastAPI
+Django
+PostgreSQL
+Redis
+Docker
+REST APIs
+Microservices
+AWS
+Pytest
+
+Experience
+
+Senior Backend Engineer
+TechNova Solutions
+2022 - Present
+
+Designed and developed production REST APIs using Python and FastAPI.
+
+Built asynchronous backend services handling high-volume API traffic.
+
+Designed PostgreSQL data models and optimized complex database queries.
+
+Implemented Redis-based caching for frequently accessed APIs.
+
+Developed automated unit and integration tests using Pytest.
+
+Backend Engineer
+DataWorks Pvt Ltd
+2020 - 2022
+
+Developed Django and Python backend applications.
+
+Built REST APIs and database integrations.
+
+Education
+
+B.Tech in Computer Science
+Jadavpur University

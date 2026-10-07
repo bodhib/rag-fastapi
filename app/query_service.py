@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from app.config import Settings, settings
 
+
 if TYPE_CHECKING:
     from app.compressor import ContextCompressor
     from app.generator import GenerationResult, GeminiGenerator
@@ -23,10 +24,6 @@ if TYPE_CHECKING:
 class QueryResult:
     """
     Represent the result of the complete RAG query pipeline.
-
-    Attributes:
-        answer: Generated answer.
-        contexts: Final context chunks supplied to the LLM.
     """
 
     answer: str
@@ -41,7 +38,7 @@ class QueryService:
 
         Query
           ↓
-        Hybrid Retrieval
+        KB-aware Hybrid Retrieval
           ↓
         Cross-Encoder Reranking
           ↓
@@ -51,60 +48,38 @@ class QueryService:
     """
 
     def __init__(
-    self,
-    hybrid_retriever,
-    reranker,
-    compressor,
-    generator,
-    config: Settings | None = None,
+        self,
+        hybrid_retriever,
+        reranker,
+        compressor,
+        generator,
+        config: Settings | None = None,
     ) -> None:
-
-        """
-        Initialize the query service.
-
-        Args:
-            hybrid_retriever: Hybrid dense + BM25 retriever.
-            reranker: Cross-encoder reranker.
-            compressor: Context compression service.
-            generator: Gemini answer generator.
-        """
-
         self.hybrid_retriever = hybrid_retriever
         self.reranker = reranker
         self.compressor = compressor
         self.generator = generator
-
         self.config = config or settings
 
     def query(
         self,
         question: str,
+        knowledge_base_id: str = "kb_default",
         retrieval_top_k: int | None = None,
         rerank_top_k: int | None = None,
         context_top_k: int | None = None,
     ) -> QueryResult:
-        """
-        Execute the complete RAG query pipeline.
-
-        Args:
-            question: User's natural-language question.
-            retrieval_top_k: Number of hybrid candidates to retrieve.
-            rerank_top_k: Number of candidates retained after reranking.
-            context_top_k: Number of final context chunks supplied
-                to the LLM.
-
-        Returns:
-            Final generated answer and the context used to generate it.
-
-        Raises:
-            ValueError: If the question or pipeline limits are invalid.
-        """
 
         if not question.strip():
             raise ValueError(
                 "question cannot be empty"
             )
-        
+
+        if not knowledge_base_id.strip():
+            raise ValueError(
+                "knowledge_base_id cannot be empty"
+            )
+
         resolved_retrieval_top_k = (
             retrieval_top_k
             if retrieval_top_k is not None
@@ -142,7 +117,7 @@ class QueryService:
             self.hybrid_retriever.retrieve(
                 query=question,
                 top_k=resolved_retrieval_top_k,
-                # candidate_k=resolved_retrieval_top_k,
+                knowledge_base_id=knowledge_base_id,
             )
         )
 

@@ -1,0 +1,24 @@
+Candidate Name: Priya Sen
+
+Current Role: Data Scientist
+
+Location: Kolkata, India
+
+Total Experience: 4 years
+
+Skills:
+Python
+Machine Learning
+Pandas
+NumPy
+Scikit-learn
+SQL
+TensorFlow
+
+Education:
+M.Tech in Data Science
+
+Notice Period: 60 days
+
+Summary:
+Priya is a data scientist with 4 years of experience working on machine learning and data analytics projects. She has strong Python and SQL skills and experience with machine learning frameworks.

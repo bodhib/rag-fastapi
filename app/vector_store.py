@@ -13,6 +13,7 @@ import chromadb
 from app.chunker import DocumentChunk
 from app.embeddings import EmbeddedChunk
 
+
 @runtime_checkable
 class VectorStore(Protocol):
     """
@@ -33,6 +34,8 @@ class VectorStore(Protocol):
         self,
         query_embedding: list[float],
         top_k: int = 5,
+        knowledge_base_id: str | None = None,
+        allowed_doc_ids: set[str] | None = None,
     ) -> list[dict[str, Any]]:
         ...
 
@@ -54,6 +57,7 @@ class VectorStore(Protocol):
     def clear(self) -> None:
         ...
 
+
 class ChromaVectorStore:
     """
     Persistent vector store backed by Chroma.
@@ -69,17 +73,6 @@ class ChromaVectorStore:
         persist_directory: Path,
         collection_name: str = DEFAULT_COLLECTION_NAME,
     ) -> None:
-        """
-        Initialize the Chroma vector store.
-
-        Args:
-            persist_directory: Directory where Chroma stores its data.
-            collection_name: Name of the Chroma collection.
-
-        Raises:
-            ValueError: If the collection name is empty.
-        """
-
         if not collection_name.strip():
             raise ValueError(
                 "collection_name cannot be empty"
@@ -97,39 +90,23 @@ class ChromaVectorStore:
             path=str(self.persist_directory)
         )
 
-        self._collection = self._client.get_or_create_collection(
-            name=self.collection_name,
-            metadata={
-                "hnsw:space": "cosine",
-            },
+        self._collection = (
+            self._client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={
+                    "hnsw:space": "cosine",
+                },
+            )
         )
 
     @property
     def count(self) -> int:
-        """
-        Return the number of vectors stored.
-
-        Returns:
-            Number of records in the collection.
-        """
-
         return self._collection.count()
 
     def add_chunks(
         self,
         embedded_chunks: list[EmbeddedChunk],
     ) -> None:
-        """
-        Add embedded document chunks to Chroma.
-
-        Args:
-            embedded_chunks: Chunks and their corresponding vectors.
-
-        Raises:
-            ValueError: If the supplied list is empty or a chunk has
-                an empty document ID.
-        """
-
         if not embedded_chunks:
             raise ValueError(
                 "Cannot add an empty chunk list"
@@ -139,6 +116,11 @@ class ChromaVectorStore:
             if not item.chunk.doc_id.strip():
                 raise ValueError(
                     "doc_id cannot be empty"
+                )
+
+            if not item.chunk.knowledge_base_id.strip():
+                raise ValueError(
+                    "knowledge_base_id cannot be empty"
                 )
 
         ids = [
@@ -162,6 +144,9 @@ class ChromaVectorStore:
                 "source": item.chunk.source,
                 "page_number": item.chunk.page_number,
                 "chunk_index": item.chunk.chunk_index,
+                "knowledge_base_id": (
+                    item.chunk.knowledge_base_id
+                ),
             }
             for item in embedded_chunks
         ]
@@ -177,56 +162,94 @@ class ChromaVectorStore:
         self,
         query_embedding: list[float],
         top_k: int = 5,
+        knowledge_base_id: str | None = None,
+        allowed_doc_ids: set[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """
-        Search the vector store for similar chunks.
+            if not query_embedding:
+                raise ValueError(
+                    "query_embedding cannot be empty"
+                )
 
-        Args:
-            query_embedding: Embedding of the user query.
-            top_k: Maximum number of results to return.
+            if top_k <= 0:
+                raise ValueError(
+                    "top_k must be greater than zero"
+                )
 
-        Returns:
-            Retrieved documents with metadata and distances.
+            if (
+                knowledge_base_id is not None
+                and not knowledge_base_id.strip()
+            ):
+                raise ValueError(
+                    "knowledge_base_id cannot be empty"
+                )
 
-        Raises:
-            ValueError: If the query embedding is empty or top_k
-                is invalid.
-        """
+            if allowed_doc_ids is not None:
+                allowed_doc_ids = {
+                    doc_id.strip()
+                    for doc_id in allowed_doc_ids
+                    if doc_id and doc_id.strip()
+                }
 
-        if not query_embedding:
-            raise ValueError(
-                "query_embedding cannot be empty"
+                if not allowed_doc_ids:
+                    return []
+
+            if self.count == 0:
+                return []
+
+            query_kwargs: dict[str, Any] = {
+                "query_embeddings": [query_embedding],
+                "n_results": min(
+                    top_k,
+                    self.count,
+                ),
+                "include": [
+                    "documents",
+                    "metadatas",
+                    "distances",
+                ],
+            }
+
+            where_conditions: list[dict[str, Any]] = []
+
+            if knowledge_base_id is not None:
+                where_conditions.append(
+                    {
+                        "knowledge_base_id": knowledge_base_id,
+                    }
+                )
+
+            if allowed_doc_ids is not None:
+                where_conditions.append(
+                    {
+                        "doc_id": {
+                            "$in": list(allowed_doc_ids),
+                        }
+                    }
+                )
+
+            if len(where_conditions) == 1:
+                query_kwargs["where"] = where_conditions[0]
+
+            elif len(where_conditions) > 1:
+                query_kwargs["where"] = {
+                    "$and": where_conditions,
+                }
+
+            results = self._collection.query(
+                **query_kwargs,
             )
 
-        if top_k <= 0:
-            raise ValueError(
-                "top_k must be greater than zero"
-            )
-
-        if self.count == 0:
-            return []
-
-        results = self._collection.query(
-            query_embeddings=[query_embedding],
-            n_results=min(top_k, self.count),
-            include=[
-                "documents",
-                "metadatas",
-                "distances",
-            ],
-        )
-
-        return self._format_results(results)
-
-    def get_all_chunks(self) -> list[DocumentChunk]:
+            return self._format_results(results)
+    
+    def get_all_chunks(
+        self,
+    ) -> list[DocumentChunk]:
         """
         Return all document chunks currently stored in Chroma.
 
-        This method is primarily used to rebuild in-memory retrieval
-        indexes such as BM25 after application startup.
-
-        Returns:
-            All stored document chunks.
+        Existing vectors created before KB-aware Chroma metadata was
+        introduced are treated as belonging to kb_default. New vectors
+        always contain an explicit knowledge_base_id.
         """
 
         if self.count == 0:
@@ -255,13 +278,29 @@ class ChromaVectorStore:
             documents,
             metadatas,
         ):
+            knowledge_base_id = str(
+                metadata.get(
+                    "knowledge_base_id",
+                    "kb_default",
+                )
+            )
+
             chunks.append(
                 DocumentChunk(
-                    doc_id=str(metadata["doc_id"]),
+                    doc_id=str(
+                        metadata["doc_id"]
+                    ),
                     text=document,
-                    source=str(metadata["source"]),
-                    page_number=int(metadata["page_number"]),
-                    chunk_index=int(metadata["chunk_index"]),
+                    source=str(
+                        metadata["source"]
+                    ),
+                    page_number=int(
+                        metadata["page_number"]
+                    ),
+                    chunk_index=int(
+                        metadata["chunk_index"]
+                    ),
+                    knowledge_base_id=knowledge_base_id,
                 )
             )
 
@@ -278,16 +317,6 @@ class ChromaVectorStore:
         self,
         doc_id: str,
     ) -> None:
-        """
-        Delete all chunks belonging to a document.
-
-        Args:
-            doc_id: Unique identifier of the document.
-
-        Raises:
-            ValueError: If doc_id is empty.
-        """
-
         if not doc_id.strip():
             raise ValueError(
                 "doc_id cannot be empty"
@@ -303,17 +332,6 @@ class ChromaVectorStore:
         self,
         source: str,
     ) -> None:
-        """
-        Delete all chunks belonging to a source filename.
-
-        This method is retained for compatibility with the earlier
-        vector-store API. New document lifecycle code should use
-        delete_document() because doc_id is the canonical identity.
-
-        Args:
-            source: Original document filename.
-        """
-
         if not source.strip():
             raise ValueError(
                 "source cannot be empty"
@@ -326,8 +344,6 @@ class ChromaVectorStore:
         )
 
     def clear(self) -> None:
-        """Delete all vectors from the collection."""
-
         existing_ids = self._collection.get(
             include=[]
         )["ids"]
@@ -341,16 +357,6 @@ class ChromaVectorStore:
     def _build_id(
         embedded_chunk: EmbeddedChunk,
     ) -> str:
-        """
-        Build a deterministic unique ID for a document chunk.
-
-        Args:
-            embedded_chunk: Chunk for which to create the ID.
-
-        Returns:
-            Unique chunk ID based on doc_id and chunk index.
-        """
-
         chunk = embedded_chunk.chunk
 
         return (
@@ -362,16 +368,6 @@ class ChromaVectorStore:
     def _format_results(
         results: dict[str, Any],
     ) -> list[dict[str, Any]]:
-        """
-        Convert Chroma's nested query response into a flat list.
-
-        Args:
-            results: Raw Chroma query response.
-
-        Returns:
-            List of individual search results.
-        """
-
         documents = results.get(
             "documents",
             [[]],
@@ -387,7 +383,9 @@ class ChromaVectorStore:
             [[]],
         )[0]
 
-        formatted_results = []
+        formatted_results: list[
+            dict[str, Any]
+        ] = []
 
         for document, metadata, distance in zip(
             documents,

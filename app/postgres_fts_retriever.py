@@ -1,5 +1,3 @@
-### `app/postgres_fts_retriever.py`
-
 """
 PostgreSQL Full-Text Search retrieval.
 
@@ -24,9 +22,8 @@ class PostgresFTSRetriever:
     """
     PostgreSQL-backed lexical retrieval implementation.
 
-    Unlike BM25Retriever, this implementation does not maintain
-    an in-memory lexical index. The searchable corpus lives in
-    PostgreSQL and can therefore be shared by multiple API instances.
+    The searchable corpus lives in PostgreSQL and can therefore be
+    shared by multiple API instances.
     """
 
     def __init__(
@@ -56,7 +53,9 @@ class PostgresFTSRetriever:
         with self.session_factory() as session:
             session.execute(
                 delete(ChunkModel).where(
-                    ChunkModel.doc_id.in_(document_ids)
+                    ChunkModel.doc_id.in_(
+                        document_ids
+                    )
                 )
             )
 
@@ -72,6 +71,9 @@ class PostgresFTSRetriever:
                         source=chunk.source,
                         page_number=chunk.page_number,
                         chunk_index=chunk.chunk_index,
+                        knowledge_base_id=(
+                            chunk.knowledge_base_id
+                        ),
                     )
                 )
 
@@ -83,18 +85,46 @@ class PostgresFTSRetriever:
         self,
         query: str,
         top_k: int = 5,
+        knowledge_base_id: str = "kb_default",
+        allowed_doc_ids: set[str] | None = None,
     ) -> list[RetrievalResult]:
         """
         Retrieve chunks using PostgreSQL full-text search.
+
+        When a knowledge base ID is supplied, only chunks belonging
+        to that knowledge base are eligible for retrieval.
+
+        When allowed_doc_ids is supplied, retrieval is restricted
+        to chunks belonging to those specific documents.
         """
 
         if not query.strip():
-            raise ValueError("query cannot be empty")
+            raise ValueError(
+                "query cannot be empty"
+            )
 
         if top_k <= 0:
             raise ValueError(
                 "top_k must be greater than zero"
             )
+
+        if (
+            knowledge_base_id is not None
+            and not knowledge_base_id.strip()
+        ):
+            raise ValueError(
+                "knowledge_base_id cannot be empty"
+            )
+
+        if allowed_doc_ids is not None:
+            allowed_doc_ids = {
+                doc_id.strip()
+                for doc_id in allowed_doc_ids
+                if doc_id and doc_id.strip()
+            }
+
+            if not allowed_doc_ids:
+                return []
 
         with self.session_factory() as session:
             search_vector = func.to_tsvector(
@@ -112,21 +142,42 @@ class PostgresFTSRetriever:
                 search_query,
             )
 
+            conditions = [
+                search_vector.op("@@")(
+                    search_query
+                )
+            ]
+
+            if knowledge_base_id is not None:
+                conditions.append(
+                    ChunkModel.knowledge_base_id
+                    == knowledge_base_id
+                )
+
+            # Restrict lexical retrieval to the documents
+            # belonging to the eligible candidates.
+            if allowed_doc_ids is not None:
+                conditions.append(
+                    ChunkModel.doc_id.in_(
+                        allowed_doc_ids
+                    )
+                )
+
             statement = (
                 select(
                     ChunkModel,
                     score.label("score"),
                 )
-                .where(
-                    search_vector.op("@@")(search_query)
-                )
+                .where(*conditions)
                 .order_by(
                     score.desc()
                 )
                 .limit(top_k)
             )
 
-            rows = session.execute(statement).all()
+            rows = session.execute(
+                statement
+            ).all()
 
             return [
                 RetrievalResult(
@@ -134,7 +185,10 @@ class PostgresFTSRetriever:
                     source=chunk.source,
                     page_number=chunk.page_number,
                     chunk_index=chunk.chunk_index,
-                    score=float(score_value),
+                    score=float(
+                        score_value
+                    ),
+                    doc_id=chunk.doc_id,
                 )
                 for chunk, score_value in rows
             ]
@@ -144,7 +198,9 @@ class PostgresFTSRetriever:
         doc_id: str,
     ) -> None:
         if not doc_id.strip():
-            raise ValueError("doc_id cannot be empty")
+            raise ValueError(
+                "doc_id cannot be empty"
+            )
 
         with self.session_factory() as session:
             session.execute(
@@ -152,4 +208,5 @@ class PostgresFTSRetriever:
                     ChunkModel.doc_id == doc_id
                 )
             )
+
             session.commit()

@@ -38,6 +38,7 @@ class RerankedResult:
     bm25_score: float
     hybrid_score: float
     rerank_score: float
+    doc_id: str = ""
 
 
 class CrossEncoderReranker:
@@ -133,6 +134,8 @@ class CrossEncoderReranker:
                 bm25_score=candidate.bm25_score,
                 hybrid_score=candidate.score,
                 rerank_score=float(score),
+                doc_id=candidate.doc_id,
+
             )
             for candidate, score
             in zip(candidates, scores)

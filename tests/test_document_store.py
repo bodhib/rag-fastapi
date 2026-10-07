@@ -46,6 +46,7 @@ def create_document(
         filename=filename,
         stored_path=stored_path,
         created_at=datetime.now(),
+        knowledge_base_id="kb_default",
         content_hash=content_hash,
         status=status,
     )
@@ -356,3 +357,31 @@ def test_release_claim_rejects_completed_document(
         match="not processing",
     ):
         store.release_claim("doc_completed")
+
+def test_claim_document_persists_knowledge_base_id(
+    postgres_session_factory,
+):
+    from datetime import datetime
+
+    document_store = DocumentStore(
+        session_factory=postgres_session_factory,
+    )
+
+    document = StoredDocument(
+        doc_id="doc_kb_test",
+        filename="company-policy.txt",
+        stored_path="/tmp/company-policy.txt",
+        created_at=datetime.now(),
+        knowledge_base_id="kb_default",
+        content_hash="a" * 64,
+        status="processing",
+    )
+
+    claimed = document_store.claim_document(document)
+
+    assert claimed.knowledge_base_id == "kb_default"
+
+    stored = document_store.get("doc_kb_test")
+
+    assert stored is not None
+    assert stored.knowledge_base_id == "kb_default"        

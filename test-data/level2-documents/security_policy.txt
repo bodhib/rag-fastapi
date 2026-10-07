@@ -1,0 +1,17 @@
+ACME Technologies
+Information Security Policy
+Effective Date: January 1, 2026
+
+Employees must use strong passwords and must not share passwords with colleagues.
+
+Multi-factor authentication is mandatory for all systems that support MFA.
+
+Company laptops must use full-disk encryption.
+
+Employees must immediately report suspected phishing emails, credential theft, lost company devices, or unauthorized access to the Security Operations Team.
+
+Confidential company information must not be uploaded to personal cloud storage or sent to personal email accounts.
+
+Security incidents should be reported within 24 hours of discovery.
+
+Employees working remotely must use the approved corporate VPN when accessing internal systems.

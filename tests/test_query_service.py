@@ -9,14 +9,14 @@ from app.reranker import RerankedResult
 
 class FakeHybridRetriever:
     def retrieve(
-            self, 
-            query: str, 
-            top_k: int, 
-            # candidate_k: int
-            ):
+        self,
+        query: str,
+        top_k: int,
+        knowledge_base_id: str | None = None,
+    ):
         assert query == "How long do I have to get a refund?"
         assert top_k == 10
-        # assert candidate_k == 10
+        assert knowledge_base_id == "kb_default"
 
         return [
             HybridResult(
@@ -29,7 +29,10 @@ class FakeHybridRetriever:
                 score=0.85,
             ),
             HybridResult(
-                text="Refund requests must include the original receipt.",
+                text=(
+                    "Refund requests must include "
+                    "the original receipt."
+                ),
                 source="policy.pdf",
                 page_number=2,
                 chunk_index=1,
@@ -41,7 +44,12 @@ class FakeHybridRetriever:
 
 
 class FakeReranker:
-    def rerank(self, query: str, candidates: list[HybridResult], top_k: int):
+    def rerank(
+        self,
+        query: str,
+        candidates: list[HybridResult],
+        top_k: int,
+    ):
         assert query == "How long do I have to get a refund?"
         assert len(candidates) == 2
         assert top_k == 5
@@ -58,7 +66,10 @@ class FakeReranker:
                 rerank_score=9.2,
             ),
             RerankedResult(
-                text="Refund requests must include the original receipt.",
+                text=(
+                    "Refund requests must include "
+                    "the original receipt."
+                ),
                 source="policy.pdf",
                 page_number=2,
                 chunk_index=1,
@@ -83,7 +94,11 @@ class FakeCompressor:
 
 
 class FakeGenerationResult:
-    def __init__(self, answer: str, contexts):
+    def __init__(
+        self,
+        answer: str,
+        contexts,
+    ):
         self.answer = answer
         self.contexts = contexts
 
@@ -100,26 +115,22 @@ class FakeGenerator:
         return FakeGenerationResult(
             answer="You can request a refund within 30 days.",
             contexts=contexts,
-        ) 
+        )
 
 
 class RecordingHybridRetriever:
-    """
-    Fake hybrid retriever that records the parameters supplied by QueryService.
-    """
-
     def __init__(self):
         self.last_top_k = None
-        self.last_candidate_k = None
+        self.last_knowledge_base_id = None
 
     def retrieve(
         self,
         query: str,
         top_k: int,
-        # candidate_k: int,
+        knowledge_base_id: str | None = None,
     ) -> list[HybridResult]:
         self.last_top_k = top_k
-        # self.last_candidate_k = candidate_k
+        self.last_knowledge_base_id = knowledge_base_id
 
         return [
             HybridResult(
@@ -135,10 +146,6 @@ class RecordingHybridRetriever:
 
 
 class RecordingReranker:
-    """
-    Fake reranker that records the top_k supplied by QueryService.
-    """
-
     def __init__(self):
         self.last_top_k = None
 
@@ -165,10 +172,6 @@ class RecordingReranker:
 
 
 class RecordingCompressor:
-    """
-    Fake compressor that records the top_k supplied by QueryService.
-    """
-
     def __init__(self):
         self.last_top_k = None
 
@@ -190,13 +193,57 @@ def test_query_service_runs_pipeline():
     )
 
     result = service.query(
-        question="How long do I have to get a refund?"
+        question="How long do I have to get a refund?",
+        knowledge_base_id="kb_default",
     )
 
-    assert result.answer == "You can request a refund within 30 days."
+    assert (
+        result.answer
+        == "You can request a refund within 30 days."
+    )
+
     assert len(result.contexts) == 2
     assert result.contexts[0].source == "policy.pdf"
     assert result.contexts[0].page_number == 1
+
+
+def test_query_service_forwards_knowledge_base_id():
+    hybrid_retriever = RecordingHybridRetriever()
+
+    service = QueryService(
+        hybrid_retriever=hybrid_retriever,
+        reranker=RecordingReranker(),
+        compressor=RecordingCompressor(),
+        generator=FakeGenerator(),
+    )
+
+    service.query(
+        question="How long do I have to get a refund?",
+        knowledge_base_id="kb_company",
+    )
+
+    assert (
+        hybrid_retriever.last_knowledge_base_id
+        == "kb_company"
+    )
+
+
+def test_query_service_rejects_empty_knowledge_base_id():
+    service = QueryService(
+        hybrid_retriever=FakeHybridRetriever(),
+        reranker=FakeReranker(),
+        compressor=FakeCompressor(),
+        generator=FakeGenerator(),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="knowledge_base_id cannot be empty",
+    ):
+        service.query(
+            question="How long do I have to get a refund?",
+            knowledge_base_id="   ",
+        )
 
 
 def test_query_service_rejects_empty_question():
@@ -207,7 +254,10 @@ def test_query_service_rejects_empty_question():
         generator=FakeGenerator(),
     )
 
-    with pytest.raises(ValueError, match="question cannot be empty"):
+    with pytest.raises(
+        ValueError,
+        match="question cannot be empty",
+    ):
         service.query(question="   ")
 
 
@@ -268,11 +318,11 @@ def test_query_service_rejects_invalid_context_top_k():
 def test_query_service_rejects_no_hybrid_results():
     class EmptyHybridRetriever:
         def retrieve(
-                self, 
-                query: str, 
-                top_k: int, 
-                # candidate_k: int
-                ):
+            self,
+            query: str,
+            top_k: int,
+            knowledge_base_id: str | None = None,
+        ):
             return []
 
     service = QueryService(
@@ -369,10 +419,12 @@ def test_query_service_uses_settings():
     assert result.answer
 
     assert hybrid_retriever.last_top_k == 20
-    # assert hybrid_retriever.last_candidate_k == 20
+    assert (
+        hybrid_retriever.last_knowledge_base_id
+        == "kb_default"
+    )
 
     assert reranker.last_top_k == 7
-
     assert compressor.last_top_k == 2
 
 
@@ -398,14 +450,55 @@ def test_query_service_explicit_values_override_settings():
 
     service.query(
         question="How long do I have to get a refund?",
+        knowledge_base_id="kb_company",
         retrieval_top_k=5,
         rerank_top_k=3,
         context_top_k=1,
     )
 
     assert hybrid_retriever.last_top_k == 5
-    # assert hybrid_retriever.last_candidate_k == 5
+    assert (
+        hybrid_retriever.last_knowledge_base_id
+        == "kb_company"
+    )
 
     assert reranker.last_top_k == 3
-
     assert compressor.last_top_k == 1
+
+def test_query_service_defaults_to_default_knowledge_base():
+    hybrid_retriever = RecordingHybridRetriever()
+
+    service = QueryService(
+        hybrid_retriever=hybrid_retriever,
+        reranker=RecordingReranker(),
+        compressor=RecordingCompressor(),
+        generator=FakeGenerator(),
+    )
+
+    service.query(
+        question="How long do I have to get a refund?",
+    )
+
+    assert (
+        hybrid_retriever.last_knowledge_base_id
+        == "kb_default"
+    )   
+
+def test_query_service_defaults_to_default_knowledge_base():
+    hybrid_retriever = RecordingHybridRetriever()
+
+    service = QueryService(
+        hybrid_retriever=hybrid_retriever,
+        reranker=RecordingReranker(),
+        compressor=RecordingCompressor(),
+        generator=FakeGenerator(),
+    )
+
+    service.query(
+        question="How long do I have to get a refund?",
+    )
+
+    assert (
+        hybrid_retriever.last_knowledge_base_id
+        == "kb_default"
+    )     

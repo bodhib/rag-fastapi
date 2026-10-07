@@ -8,12 +8,13 @@ from app.vector_store import ChromaVectorStore
 
 
 def create_embedded_chunk(
-    doc_id: str,    
+    doc_id: str,
     text: str,
     source: str,
     page_number: int,
     chunk_index: int,
     embedding: list[float],
+    knowledge_base_id: str = "kb_default",
 ) -> EmbeddedChunk:
     """Create a test embedded chunk."""
 
@@ -23,6 +24,7 @@ def create_embedded_chunk(
         source=source,
         page_number=page_number,
         chunk_index=chunk_index,
+        knowledge_base_id=knowledge_base_id,
     )
 
     return EmbeddedChunk(
@@ -37,7 +39,7 @@ def test_empty_collection(
     """Verify a newly created collection is empty."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     assert store.count == 0
@@ -49,7 +51,7 @@ def test_add_chunks(
     """Verify chunks can be stored."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     chunks = [
@@ -76,13 +78,47 @@ def test_add_chunks(
     assert store.count == 2
 
 
+def test_add_chunks_persists_knowledge_base_metadata(
+    tmp_path: Path,
+) -> None:
+    store = ChromaVectorStore(
+        persist_directory=tmp_path / "chroma",
+    )
+
+    chunks = [
+        create_embedded_chunk(
+            doc_id="doc_company",
+            text="Company policy.",
+            source="company.txt",
+            page_number=1,
+            chunk_index=0,
+            embedding=[1.0, 0.0, 0.0],
+            knowledge_base_id="kb_company",
+        )
+    ]
+
+    store.add_chunks(chunks)
+
+    results = store.search(
+        query_embedding=[1.0, 0.0, 0.0],
+        top_k=1,
+        knowledge_base_id="kb_company",
+    )
+
+    assert len(results) == 1
+    assert (
+        results[0]["metadata"]["knowledge_base_id"]
+        == "kb_company"
+    )
+
+
 def test_search_returns_similar_chunk(
     tmp_path: Path,
 ) -> None:
     """Verify vector similarity search works."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     chunks = [
@@ -121,6 +157,54 @@ def test_search_returns_similar_chunk(
     assert results[0]["metadata"]["source"] == "policy.pdf"
     assert results[0]["metadata"]["page_number"] == 4
     assert results[0]["metadata"]["doc_id"] == "doc_001"
+    assert (
+        results[0]["metadata"]["knowledge_base_id"]
+        == "kb_default"
+    )
+
+
+def test_search_can_filter_by_knowledge_base(
+    tmp_path: Path,
+) -> None:
+    store = ChromaVectorStore(
+        persist_directory=tmp_path / "chroma",
+    )
+
+    chunks = [
+        create_embedded_chunk(
+            doc_id="doc_default",
+            text="Default knowledge base content.",
+            source="default.txt",
+            page_number=1,
+            chunk_index=0,
+            embedding=[1.0, 0.0, 0.0],
+            knowledge_base_id="kb_default",
+        ),
+        create_embedded_chunk(
+            doc_id="doc_company",
+            text="Company knowledge base content.",
+            source="company.txt",
+            page_number=1,
+            chunk_index=0,
+            embedding=[1.0, 0.0, 0.0],
+            knowledge_base_id="kb_company",
+        ),
+    ]
+
+    store.add_chunks(chunks)
+
+    results = store.search(
+        query_embedding=[1.0, 0.0, 0.0],
+        top_k=5,
+        knowledge_base_id="kb_company",
+    )
+
+    assert len(results) == 1
+    assert results[0]["metadata"]["doc_id"] == "doc_company"
+    assert (
+        results[0]["metadata"]["knowledge_base_id"]
+        == "kb_company"
+    )
 
 
 def test_search_empty_store(
@@ -129,7 +213,7 @@ def test_search_empty_store(
     """Verify searching an empty store returns no results."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     results = store.search(
@@ -146,7 +230,7 @@ def test_empty_chunks_are_rejected(
     """Verify empty chunk insertion is rejected."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     with pytest.raises(
@@ -162,7 +246,7 @@ def test_invalid_top_k_is_rejected(
     """Verify invalid top_k is rejected."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     with pytest.raises(
@@ -181,7 +265,7 @@ def test_delete_source(
     """Verify all chunks for a source can be deleted."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     chunks = [
@@ -219,13 +303,14 @@ def test_delete_source(
 
     assert store.count == 1
 
+
 def test_same_filename_with_different_doc_ids_is_stored_separately(
     tmp_path: Path,
 ) -> None:
     """Verify doc_id prevents filename-based chunk collisions."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     chunks = [
@@ -251,13 +336,14 @@ def test_same_filename_with_different_doc_ids_is_stored_separately(
 
     assert store.count == 2
 
+
 def test_delete_document_removes_only_that_document(
     tmp_path: Path,
 ) -> None:
     """Verify deletion by doc_id removes only one document."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     chunks = [
@@ -301,7 +387,8 @@ def test_delete_document_removes_only_that_document(
     )
 
     assert len(results) == 1
-    assert results[0]["metadata"]["doc_id"] == "doc_002" 
+    assert results[0]["metadata"]["doc_id"] == "doc_002"
+
 
 def test_delete_document_rejects_empty_doc_id(
     tmp_path: Path,
@@ -309,7 +396,7 @@ def test_delete_document_rejects_empty_doc_id(
     """Verify empty document IDs are rejected."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     with pytest.raises(
@@ -318,13 +405,14 @@ def test_delete_document_rejects_empty_doc_id(
     ):
         store.delete_document("")
 
+
 def test_get_all_chunks_returns_persisted_chunks(
     tmp_path: Path,
 ) -> None:
     """Verify all stored chunks can be reconstructed."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
     chunks = [
@@ -351,6 +439,7 @@ def test_get_all_chunks_returns_persisted_chunks(
             page_number=1,
             chunk_index=0,
             embedding=[0.0, 1.0, 0.0],
+            knowledge_base_id="kb_company",
         ),
     ]
 
@@ -365,12 +454,15 @@ def test_get_all_chunks_returns_persisted_chunks(
     assert result[0].source == "policy.pdf"
     assert result[0].page_number == 1
     assert result[0].chunk_index == 0
+    assert result[0].knowledge_base_id == "kb_default"
 
     assert result[1].doc_id == "doc_001"
     assert result[1].chunk_index == 1
+    assert result[1].knowledge_base_id == "kb_default"
 
     assert result[2].doc_id == "doc_002"
-    assert result[2].chunk_index == 0        
+    assert result[2].chunk_index == 0
+    assert result[2].knowledge_base_id == "kb_company"
 
 
 def test_get_all_chunks_returns_empty_list_for_empty_store(
@@ -379,7 +471,7 @@ def test_get_all_chunks_returns_empty_list_for_empty_store(
     """Verify an empty Chroma store returns no chunks."""
 
     store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma"
+        persist_directory=tmp_path / "chroma",
     )
 
-    assert store.get_all_chunks() == []              
+    assert store.get_all_chunks() == []

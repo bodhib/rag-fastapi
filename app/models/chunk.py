@@ -1,6 +1,4 @@
-### `app/models/chunk.py`
-
-from sqlalchemy import Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -45,4 +43,14 @@ class ChunkModel(Base):
     chunk_index: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
+    )
+
+    knowledge_base_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(
+            "knowledge_bases.knowledge_base_id",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+        index=True,
     )

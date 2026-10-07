@@ -5,6 +5,10 @@ from functools import lru_cache
 from app.config import settings
 from app.database import SessionLocal
 
+from app.query_understanding import RecruiterQueryUnderstandingService
+
+from app.config import get_settings
+
 
 @lru_cache
 def get_document_processor():
@@ -82,7 +86,9 @@ def get_retrieval_index_manager():
     chunks = get_vector_store().get_all_chunks()
 
     if chunks:
-        manager.rebuild(chunks)
+        manager.rebuild(
+            chunks
+        )
 
     return manager
 
@@ -92,6 +98,15 @@ def get_document_store():
     from app.document_store import DocumentStore
 
     return DocumentStore(
+        session_factory=SessionLocal,
+    )
+
+
+@lru_cache
+def get_knowledge_base_store():
+    from app.knowledge_base_store import KnowledgeBaseStore
+
+    return KnowledgeBaseStore(
         session_factory=SessionLocal,
     )
 
@@ -109,62 +124,26 @@ def get_file_storage():
 def get_ingestion_service():
     from app.ingestion_service import DocumentIngestionService
 
-    print("[DEPENDENCY] Creating DocumentIngestionService", flush=True)
-
-    print("[DEPENDENCY] Getting document processor", flush=True)
-    document_processor = get_document_processor()
-
-    print("[DEPENDENCY] Getting chunker", flush=True)
-    chunker = get_chunker()
-
-    print("[DEPENDENCY] Getting embedding service", flush=True)
-    embedding_service = get_embedding_service()
-
-    print("[DEPENDENCY] Getting vector store", flush=True)
-    vector_store = get_vector_store()
-
-    print("[DEPENDENCY] Getting retrieval index manager", flush=True)
-    retrieval_index_manager = get_retrieval_index_manager()
-
-    print("[DEPENDENCY] Getting document store", flush=True)
-    document_store = get_document_store()
-
-    print("[DEPENDENCY] All ingestion dependencies ready", flush=True)
-
     return DocumentIngestionService(
-        document_processor=document_processor,
-        chunker=chunker,
-        embedding_service=embedding_service,
-        vector_store=vector_store,
-        retrieval_index_manager=retrieval_index_manager,
-        document_store=document_store,
+        document_processor=get_document_processor(),
+        chunker=get_chunker(),
+        embedding_service=get_embedding_service(),
+        vector_store=get_vector_store(),
+        retrieval_index_manager=get_retrieval_index_manager(),
+        document_store=get_document_store(),
+        candidate_store=get_candidate_store(),
     )
+
 
 def create_ingestion_service():
-    import os
-    import psutil
+    """
+    Create an ingestion service lazily.
 
-    process = psutil.Process(os.getpid())
-
-    print(
-        f"[FACTORY] Memory before ingestion import: "
-        f"{process.memory_info().rss / 1024 / 1024:.1f} MB",
-        flush=True,
-    )
-
-    print("[FACTORY] create_ingestion_service entered", flush=True)
+    This factory intentionally avoids creating heavy ML components
+    until background ingestion actually starts.
+    """
 
     from app.ingestion_service import DocumentIngestionService
-
-    process = psutil.Process(os.getpid())
-
-    print(
-        f"[FACTORY] Memory after ingestion import: "
-        f"{process.memory_info().rss / 1024 / 1024:.1f} MB",
-        flush=True,
-    )
-
-    print("[FACTORY] DocumentIngestionService imported", flush=True)
 
     return DocumentIngestionService(
         document_processor=get_document_processor(),
@@ -173,6 +152,7 @@ def create_ingestion_service():
         vector_store=get_vector_store(),
         retrieval_index_manager=get_retrieval_index_manager(),
         document_store=get_document_store(),
+        candidate_store=get_candidate_store(),
     )
 
 
@@ -235,6 +215,16 @@ def get_query_service():
 
 
 @lru_cache
+def get_search_service():
+    from app.search_service import SearchService
+
+    return SearchService(
+        hybrid_retriever=get_hybrid_retriever(),
+        reranker=get_reranker(),
+        config=settings,
+    )
+
+@lru_cache
 def get_ingestion_job_store():
     from app.ingestion_job_store import IngestionJobStore
 
@@ -245,41 +235,41 @@ def get_ingestion_job_store():
 
 @lru_cache
 def get_background_ingestion_service():
-    from app.background_ingestion import BackgroundIngestionService
-
-    print(
-        "[DEPENDENCY] create_ingestion_service object:",
-        create_ingestion_service,
-        flush=True,
-    )
-    print(
-        "[DEPENDENCY] create_ingestion_service name:",
-        getattr(create_ingestion_service, "__name__", None),
-        flush=True,
-    )
-    print(
-        "[DEPENDENCY] create_ingestion_service module:",
-        getattr(create_ingestion_service, "__module__", None),
-        flush=True,
+    from app.background_ingestion import (
+        BackgroundIngestionService,
     )
 
-    service = BackgroundIngestionService(
+    return BackgroundIngestionService(
         ingestion_service_factory=create_ingestion_service,
         job_store_factory=get_ingestion_job_store,
     )
 
-    print(
-        "[DEPENDENCY] Background service factory stored:",
-        service.ingestion_service_factory,
-        flush=True,
-    )
-    print(
-        "[DEPENDENCY] Background service factory name:",
-        getattr(service.ingestion_service_factory, "__name__", None),
-        flush=True,
+@lru_cache
+def get_candidate_store():
+    from app.candidate_store import CandidateStore
+
+    return CandidateStore(
+        session_factory=SessionLocal,
+        document_store=get_document_store(),
     )
 
-    return service
+
+@lru_cache
+def get_recruiter_search_service():
+    from app.recruiter_search_service import (
+        RecruiterSearchService,
+    )
+
+    return RecruiterSearchService(
+        candidate_store=get_candidate_store(),
+        search_service=get_search_service(),
+    )
+
+@lru_cache
+def get_recruiter_query_understanding_service() -> RecruiterQueryUnderstandingService:
+    return RecruiterQueryUnderstandingService(
+        settings=get_settings(),
+    )
 
 
 def clear_dependency_caches() -> None:
@@ -290,17 +280,20 @@ def clear_dependency_caches() -> None:
     """
 
     get_query_service.cache_clear()
+    get_search_service.cache_clear()
     get_generator.cache_clear()
     get_compressor.cache_clear()
     get_reranker.cache_clear()
+
     get_hybrid_retriever.cache_clear()
     get_dense_retriever.cache_clear()
 
     get_lexical_retriever.cache_clear()
     get_postgres_fts_retriever.cache_clear()
+    get_bm25_retriever.cache_clear()
 
     get_retrieval_index_manager.cache_clear()
-    get_bm25_retriever.cache_clear()
+
     get_embedding_service.cache_clear()
     get_vector_store.cache_clear()
 
@@ -310,5 +303,10 @@ def clear_dependency_caches() -> None:
     get_ingestion_service.cache_clear()
     get_file_storage.cache_clear()
     get_document_store.cache_clear()
+    get_knowledge_base_store.cache_clear()
+
+    get_recruiter_search_service.cache_clear()
+    get_candidate_store.cache_clear()
+
     get_chunker.cache_clear()
     get_document_processor.cache_clear()

@@ -1,9 +1,0 @@
-Production Verification Document
-
-The Aurora Compass policy requires employees to submit a remote-work request at least 14 calendar days before the requested start date.
-
-For urgent requests, employees must include the verification marker ORBIT-PROD-2196 in the request notes.
-
-The operations team reviews all requests containing the ORBIT-PROD-2196 marker.
-
-This document is used exclusively for final production verification of the RAG ingestion and retrieval pipeline.

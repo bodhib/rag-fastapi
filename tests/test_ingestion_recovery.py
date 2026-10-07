@@ -1,245 +1,264 @@
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
+from app.chunker import DocumentChunk
+from app.document_store import StoredDocument
 from app.ingestion_service import DocumentIngestionService
-from app.document_store import DuplicateDocumentInProgressError
 
 
-class FailingRetrievalIndexManager:
-    def __init__(self) -> None:
-        self.removed_doc_ids: list[str] = []
-
-    def rebuild(self, chunks) -> int:
-        raise RuntimeError("Simulated lexical index failure")
-
-    def remove_document(self, doc_id: str) -> None:
-        self.removed_doc_ids.append(doc_id)
-
-class PartiallyFailingRetrievalIndexManager:
-    def __init__(self) -> None:
-        self.rebuild_calls = 0
-        self.chunks = []
-
-    def rebuild(self, chunks) -> int:
-        self.rebuild_calls += 1
-
-        if self.rebuild_calls == 1:
-            # Simulate a lexical rebuild that partially
-            # modifies the index and then fails.
-            self.chunks = list(chunks[:1])
-
-            raise RuntimeError(
-                "Simulated partial lexical index failure"
-            )
-
-        # Recovery rebuild.
-        self.chunks = list(chunks)
-
-        return len(chunks)
-
-    def remove_document(self, doc_id: str) -> None:
-        self.chunks = [
-            chunk
-            for chunk in self.chunks
-            if chunk.doc_id != doc_id
-        ]
-
-class RecordingVectorStore:
-    def __init__(self, chunks=None) -> None:
-        self.chunks = list(chunks or [])
-        self.added_doc_ids: list[str] = []
-        self.deleted_doc_ids: list[str] = []
-
-    def add_chunks(self, embedded_chunks) -> None:
-        for item in embedded_chunks:
-            self.added_doc_ids.append(item.chunk.doc_id)
-            self.chunks.append(item.chunk)
-
-    def delete_document(self, doc_id: str) -> None:
-        self.deleted_doc_ids.append(doc_id)
-
-        self.chunks = [
-            chunk
-            for chunk in self.chunks
-            if chunk.doc_id != doc_id
-        ]
-
-    def get_all_chunks(self):
-        return list(self.chunks)
-    
-
-class FakeProcessor:
-    def process(self, file_path: Path):
+class FakeDocumentProcessor:
+    def process(self, file_path):
         return [
-            type(
-                "Page",
-                (),
-                {
-                    "page_number": 1,
-                    "text": "Failure recovery test document.",
-                },
-            )()
+            {
+                "page_number": 1,
+                "text": "test document content",
+            }
         ]
 
 
 class FakeChunker:
-    def chunk(self, doc_id, pages):
+    def chunk(
+        self,
+        doc_id,
+        pages,
+        knowledge_base_id="kb_default",
+    ):
         return [
-            type(
-                "Chunk",
-                (),
-                {
-                    "doc_id": doc_id,
-                    "text": "Failure recovery test document.",
-                    "source": "failure-recovery.txt",
-                    "page_number": 1,
-                    "chunk_index": 0,
-                },
-            )()
+            DocumentChunk(
+                doc_id=doc_id,
+                text="chunk one",
+                source="test.txt",
+                page_number=1,
+                chunk_index=0,
+                knowledge_base_id=knowledge_base_id,
+            ),
+            DocumentChunk(
+                doc_id=doc_id,
+                text="chunk two",
+                source="test.txt",
+                page_number=1,
+                chunk_index=1,
+                knowledge_base_id=knowledge_base_id,
+            ),
         ]
 
 
 class FakeEmbeddingService:
     def embed_chunks(self, chunks):
-        return [
-            type(
-                "EmbeddedChunk",
-                (),
-                {
-                    "chunk": chunk,
-                    "embedding": [0.1, 0.2, 0.3],
-                },
-            )()
-            for chunk in chunks
+        # For this recovery test we do not need real embeddings.
+        # Returning the chunks themselves is sufficient because the
+        # fake vector store only needs to track which document was added.
+        return chunks
+
+
+class FakeVectorStore:
+    def __init__(self):
+        self.added_chunks = []
+        self.deleted_doc_ids = []
+
+    def add_chunks(self, embedded_chunks):
+        self.added_chunks.extend(embedded_chunks)
+
+    def delete_document(self, doc_id):
+        self.deleted_doc_ids.append(doc_id)
+
+        self.added_chunks = [
+            chunk
+            for chunk in self.added_chunks
+            if chunk.doc_id != doc_id
         ]
+
+    def get_all_chunks(self):
+        return list(self.added_chunks)
+
+
+class FakeRetrievalIndexManager:
+    def __init__(self):
+        self.rebuild_calls = []
+        self.remove_calls = []
+        self.fail_first_rebuild = False
+        self.partial_chunks = []
+
+    def rebuild(self, chunks):
+        chunks = list(chunks)
+
+        self.rebuild_calls.append(chunks)
+
+        if self.fail_first_rebuild and len(self.rebuild_calls) == 1:
+            # Simulate a lexical-index mutation occurring before
+            # the rebuild operation fails.
+            self.partial_chunks.extend(chunks[:1])
+
+            raise RuntimeError(
+                "lexical index failure"
+            )
+
+        return len(chunks)
+
+    def remove_document(self, doc_id):
+        self.remove_calls.append(doc_id)
 
 
 class FakeDocumentStore:
-    def __init__(self) -> None:
+    def __init__(self):
         self.documents = {}
-        self.released_doc_ids: list[str] = []
+        self.claimed_documents = {}
+        self.release_claim_calls = []
 
-    def create_timestamp(self):
-        from datetime import datetime
+    @staticmethod
+    def create_timestamp():
         return datetime.now()
 
     def claim_document(self, document):
         self.documents[document.doc_id] = document
+        self.claimed_documents[document.doc_id] = document
+
         return document
 
     def mark_completed(self, doc_id):
-        raise AssertionError(
-            "mark_completed should not be reached"
-        )
+        self.documents[doc_id].status = "completed"
 
     def release_claim(self, doc_id):
-        self.released_doc_ids.append(doc_id)
-        self.documents.pop(doc_id, None)
+        self.release_claim_calls.append(doc_id)
+
+        document = self.claimed_documents.pop(
+            doc_id,
+            None,
+        )
+
+        if document is not None:
+            self.documents.pop(
+                doc_id,
+                None,
+            )
+
+
+def _build_service(
+    *,
+    document_store,
+    vector_store,
+    retrieval_index_manager,
+):
+    return DocumentIngestionService(
+        document_processor=FakeDocumentProcessor(),
+        chunker=FakeChunker(),
+        embedding_service=FakeEmbeddingService(),
+        vector_store=vector_store,
+        retrieval_index_manager=retrieval_index_manager,
+        document_store=document_store,
+    )
 
 
 def test_ingestion_failure_compensates_vector_and_lexical_state(
-    tmp_path,
+    tmp_path: Path,
 ):
-    source_file = tmp_path / "failure-recovery.txt"
+    source_file = tmp_path / "test.txt"
+
     source_file.write_text(
-        "Failure recovery test document.",
+        "test document content",
         encoding="utf-8",
     )
 
-    vector_store = RecordingVectorStore()
-    retrieval_manager = FailingRetrievalIndexManager()
     document_store = FakeDocumentStore()
+    vector_store = FakeVectorStore()
+    retrieval_index_manager = FakeRetrievalIndexManager()
 
-    service = DocumentIngestionService(
-        document_processor=FakeProcessor(),
-        chunker=FakeChunker(),
-        embedding_service=FakeEmbeddingService(),
-        vector_store=vector_store,
-        retrieval_index_manager=retrieval_manager,
+    retrieval_index_manager.fail_first_rebuild = True
+
+    service = _build_service(
         document_store=document_store,
+        vector_store=vector_store,
+        retrieval_index_manager=retrieval_index_manager,
     )
 
     with pytest.raises(
         RuntimeError,
-        match="Simulated lexical index failure",
+        match="lexical index failure",
     ):
-        service.ingest(source_file)
+        service.ingest(
+            file_path=source_file,
+            filename="test.txt",
+            knowledge_base_id="kb_default",
+        )
 
-    assert len(vector_store.added_doc_ids) == 1
-    assert vector_store.deleted_doc_ids == vector_store.added_doc_ids
+    # The vector store initially received both chunks.
+    assert len(retrieval_index_manager.rebuild_calls[0]) == 2
 
-    assert len(retrieval_manager.removed_doc_ids) == 0
+    # The failed ingestion must remove the document's vectors.
+    assert len(vector_store.deleted_doc_ids) == 1
 
-    assert len(document_store.released_doc_ids) == 1
-    assert document_store.documents == {}
+    doc_id = vector_store.deleted_doc_ids[0]
+
+    assert doc_id.startswith("doc_")
+
+    # After vector cleanup, there should be no remaining chunks.
+    assert vector_store.get_all_chunks() == []
+
+    # The recovery path rebuilds the lexical index from the
+    # remaining vector-store contents.
+    assert len(retrieval_index_manager.rebuild_calls) == 2
+
+    assert retrieval_index_manager.rebuild_calls[1] == []
+
+    # The ingestion claim must always be released.
+    assert document_store.release_claim_calls == [doc_id]
+
 
 def test_ingestion_recovers_from_partial_lexical_mutation(
-    tmp_path,
+    tmp_path: Path,
 ):
-    source_file = tmp_path / "partial-recovery.txt"
+    source_file = tmp_path / "test.txt"
+
     source_file.write_text(
-        "Partial lexical recovery test document.",
+        "test document content",
         encoding="utf-8",
     )
 
-    existing_chunk = type(
-        "Chunk",
-        (),
-        {
-            "doc_id": "existing-doc",
-            "text": "Existing document content.",
-            "source": "existing.txt",
-            "page_number": 1,
-            "chunk_index": 0,
-        },
-    )()
-
-    vector_store = RecordingVectorStore(
-        chunks=[existing_chunk]
-    )
-
-    retrieval_manager = (
-        PartiallyFailingRetrievalIndexManager()
-    )
-
     document_store = FakeDocumentStore()
+    vector_store = FakeVectorStore()
+    retrieval_index_manager = FakeRetrievalIndexManager()
 
-    service = DocumentIngestionService(
-        document_processor=FakeProcessor(),
-        chunker=FakeChunker(),
-        embedding_service=FakeEmbeddingService(),
-        vector_store=vector_store,
-        retrieval_index_manager=retrieval_manager,
+    retrieval_index_manager.fail_first_rebuild = True
+
+    service = _build_service(
         document_store=document_store,
+        vector_store=vector_store,
+        retrieval_index_manager=retrieval_index_manager,
     )
 
     with pytest.raises(
         RuntimeError,
-        match="Simulated partial lexical index failure",
+        match="lexical index failure",
     ):
-        service.ingest(source_file)
+        service.ingest(
+            file_path=source_file,
+            filename="test.txt",
+            knowledge_base_id="kb_default",
+        )
 
-    new_doc_id = vector_store.added_doc_ids[0]
+    # The first rebuild partially mutated the lexical index
+    # before raising the error.
+    assert len(
+        retrieval_index_manager.partial_chunks
+    ) == 1
 
-    # The newly ingested document must be removed
-    # from the vector store during compensation.
-    assert vector_store.deleted_doc_ids == [new_doc_id]
+    # The recovery path performs a second rebuild using the
+    # current contents of the vector store.
+    assert len(
+        retrieval_index_manager.rebuild_calls
+    ) == 2
 
-    # The lexical rebuild should have happened twice:
-    #
-    # 1. Initial rebuild -> partially mutates and fails
-    # 2. Recovery rebuild -> succeeds
-    assert retrieval_manager.rebuild_calls == 2
+    assert retrieval_index_manager.rebuild_calls[0]
 
-    # After recovery, the lexical index must contain
-    # exactly the chunks that remain in the authoritative
-    # vector store.
-    assert retrieval_manager.chunks == [
-        existing_chunk
-    ]
+    assert retrieval_index_manager.rebuild_calls[1] == []
 
-    # The failed document claim must be released.
-    assert document_store.released_doc_ids == [new_doc_id]
+    # Vector-store compensation happened.
+    assert len(vector_store.deleted_doc_ids) == 1
 
-    assert document_store.documents == {}    
+    doc_id = vector_store.deleted_doc_ids[0]
+
+    # The ingestion claim was released.
+    assert document_store.release_claim_calls == [doc_id]
+

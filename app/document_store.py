@@ -25,6 +25,7 @@ class StoredDocument:
     created_at: datetime
     content_hash: str | None = None
     status: str = "completed"
+    knowledge_base_id: str = "kb_default"
 
 
 class DuplicateDocumentInProgressError(Exception):
@@ -53,6 +54,7 @@ class DocumentStore:
                     filename=document.filename,
                     stored_path=document.stored_path,
                     created_at=document.created_at,
+                    knowledge_base_id=document.knowledge_base_id,
                     content_hash=document.content_hash,
                     status=document.status,
                 )
@@ -102,6 +104,7 @@ class DocumentStore:
                             filename=document.filename,
                             stored_path=document.stored_path,
                             created_at=document.created_at,
+                            knowledge_base_id=document.knowledge_base_id,
                             content_hash=document.content_hash,
                             status="processing",
                         )
@@ -131,6 +134,7 @@ class DocumentStore:
                 filename=document.filename,
                 stored_path=document.stored_path,
                 created_at=document.created_at,
+                knowledge_base_id=document.knowledge_base_id,
                 content_hash=document.content_hash,
                 status="processing",
             )
@@ -230,6 +234,7 @@ class DocumentStore:
             existing.filename = document.filename
             existing.stored_path = document.stored_path
             existing.created_at = document.created_at
+            existing.knowledge_base_id = document.knowledge_base_id
             existing.content_hash = document.content_hash
             existing.status = document.status
 
@@ -290,6 +295,40 @@ class DocumentStore:
             filename=document.filename,
             stored_path=document.stored_path,
             created_at=document.created_at,
+            knowledge_base_id=document.knowledge_base_id,
             content_hash=document.content_hash,
             status=document.status,
         )
+    
+    def get_by_filename(
+        self,
+        *,
+        knowledge_base_id: str,
+        filename: str,
+    ) -> StoredDocument | None:
+
+        normalized_filename = filename.strip()
+
+        if not normalized_filename:
+            return None
+
+        with self.session_factory() as session:
+            document = session.execute(
+                select(DocumentModel)
+                .where(
+                    DocumentModel.knowledge_base_id
+                    == knowledge_base_id,
+                    DocumentModel.filename
+                    == normalized_filename,
+                    DocumentModel.status
+                    == "completed",
+                )
+                .order_by(
+                    DocumentModel.created_at.desc()
+                )
+            ).scalars().first()
+
+            if document is None:
+                return None
+
+            return self._to_stored_document(document)    

@@ -13,15 +13,6 @@ from app.retrieval import DenseRetriever, RetrievalResult
 class HybridResult:
     """
     Represent one result after combining dense and lexical retrieval.
-
-    Attributes:
-        text: Retrieved document chunk text.
-        source: Original document filename.
-        page_number: Original page number.
-        chunk_index: Position of the chunk within the document.
-        dense_score: Score produced by dense retrieval.
-        bm25_score: Score produced by lexical retrieval.
-        score: Final hybrid retrieval score.
     """
 
     text: str
@@ -31,14 +22,16 @@ class HybridResult:
     dense_score: float
     bm25_score: float
     score: float
+    doc_id: str = ""
 
 
 class HybridRetriever:
     """
     Combine dense and lexical retrieval results.
 
-    The hybrid retriever depends on retrieval capabilities,
-    not on a specific lexical retrieval technology such as BM25.
+    Both retrieval branches receive the same knowledge base ID,
+    ensuring that hybrid retrieval never combines results from
+    different knowledge bases.
     """
 
     def __init__(
@@ -53,38 +46,77 @@ class HybridRetriever:
         self,
         query: str,
         top_k: int = 5,
+        knowledge_base_id: str | None = None,
+        allowed_doc_ids: set[str] | None = None,
     ) -> list[HybridResult]:
-        dense_results = self.dense_retriever.retrieve(
-            query,
-            top_k=top_k,
-        )
 
-        lexical_results = self.lexical_retriever.retrieve(
-            query,
-            top_k=top_k,
-        )
+            if not query.strip():
+                raise ValueError(
+                    "query cannot be empty"
+                )
 
-        return self._merge_results(
-            dense_results,
-            lexical_results,
-            top_k=top_k,
-        )
+            if top_k <= 0:
+                raise ValueError(
+                    "top_k must be greater than zero"
+                )
 
+            if (
+                knowledge_base_id is not None
+                and not knowledge_base_id.strip()
+            ):
+                raise ValueError(
+                    "knowledge_base_id cannot be empty"
+                )
+
+            if allowed_doc_ids is not None:
+                allowed_doc_ids = {
+                    doc_id.strip()
+                    for doc_id in allowed_doc_ids
+                    if doc_id and doc_id.strip()
+                }
+
+                if not allowed_doc_ids:
+                    return []
+
+            dense_results = (
+                self.dense_retriever.retrieve(
+                    query=query,
+                    top_k=top_k,
+                    knowledge_base_id=knowledge_base_id,
+                    allowed_doc_ids=allowed_doc_ids,
+                )
+            )
+
+            lexical_results = (
+                self.lexical_retriever.retrieve(
+                    query=query,
+                    top_k=top_k,
+                    knowledge_base_id=knowledge_base_id,
+                    allowed_doc_ids=allowed_doc_ids,
+                )
+            )
+
+            return self._merge_results(
+                dense_results,
+                lexical_results,
+                top_k=top_k,
+            )
+    
     @staticmethod
     def _merge_results(
         dense_results: list[RetrievalResult],
         lexical_results: list[RetrievalResult],
         top_k: int,
     ) -> list[HybridResult]:
+
         merged: dict[
             tuple[str, int, int],
             HybridResult,
         ] = {}
 
-        # Add dense retrieval results.
         for result in dense_results:
             key = (
-                result.source,
+                result.doc_id,
                 result.page_number,
                 result.chunk_index,
             )
@@ -97,13 +129,12 @@ class HybridRetriever:
                 dense_score=result.score,
                 bm25_score=0.0,
                 score=result.score,
+                doc_id=result.doc_id,
             )
 
-        # Add lexical retrieval results or combine with
-        # an existing dense result.
         for result in lexical_results:
             key = (
-                result.source,
+                result.doc_id,
                 result.page_number,
                 result.chunk_index,
             )
@@ -117,6 +148,7 @@ class HybridRetriever:
                     dense_score=0.0,
                     bm25_score=result.score,
                     score=result.score,
+                    doc_id=result.doc_id,
                 )
 
             else:
@@ -133,6 +165,7 @@ class HybridRetriever:
                         existing.dense_score,
                         result.score,
                     ),
+                    doc_id=result.doc_id,
                 )
 
         return sorted(

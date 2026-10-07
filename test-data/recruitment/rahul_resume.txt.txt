@@ -1,0 +1,46 @@
+Rahul Mehta
+Python Backend Developer
+Bengaluru, India
+
+Professional Summary
+
+Backend developer with 5 years of experience building Python applications and REST APIs.
+
+Technical Skills
+
+Python
+Django
+Flask
+PostgreSQL
+MySQL
+Docker
+REST APIs
+Celery
+AWS
+
+Experience
+
+Backend Developer
+CloudApps India
+2021 - Present
+
+Developed Python backend services using Django and Flask.
+
+Built REST APIs for internal and customer-facing applications.
+
+Worked with PostgreSQL and MySQL databases.
+
+Implemented asynchronous background jobs using Celery.
+
+Software Engineer
+WebStack Technologies
+2019 - 2021
+
+Developed web applications using Python and Django.
+
+Worked on API integrations and database systems.
+
+Education
+
+B.E. in Information Technology
+Visvesvaraya Technological University

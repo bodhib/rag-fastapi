@@ -7,9 +7,7 @@ from app.document_store import (
     DuplicateDocumentInProgressError,
     StoredDocument,
 )
-from app.ingestion_service import (
-    DocumentIngestionService,
-)
+from app.ingestion_service import DocumentIngestionService
 
 
 class FakeDocumentProcessor:
@@ -34,9 +32,16 @@ class FakeDocumentProcessor:
 class FakeChunker:
     def __init__(self):
         self.chunk_count = 0
+        self.last_knowledge_base_id = None
 
-    def chunk(self, doc_id, pages):
+    def chunk(
+        self,
+        doc_id,
+        pages,
+        knowledge_base_id,
+    ):
         self.chunk_count += 1
+        self.last_knowledge_base_id = knowledge_base_id
 
         return [
             DocumentChunk(
@@ -45,6 +50,7 @@ class FakeChunker:
                 source="test.txt",
                 page_number=1,
                 chunk_index=0,
+                knowledge_base_id=knowledge_base_id,
             )
         ]
 
@@ -77,6 +83,7 @@ class FakeVectorStore:
     def delete_document(self, doc_id):
         self.delete_count += 1
         self.deleted_doc_ids.append(doc_id)
+
         self.chunks = [
             chunk
             for chunk in self.chunks
@@ -182,10 +189,12 @@ def create_service(
     embedding_service = FakeEmbeddingService()
 
     vector_store = vector_store or FakeVectorStore()
+
     retrieval_index_manager = (
         retrieval_index_manager
         or FakeRetrievalIndexManager()
     )
+
     document_store = (
         document_store
         or FakeDocumentStore()
@@ -203,6 +212,7 @@ def create_service(
     return (
         service,
         processor,
+        chunker,
         embedding_service,
         document_store,
     )
@@ -215,6 +225,7 @@ def test_ingest_runs_complete_pipeline(tmp_path):
     (
         service,
         processor,
+        chunker,
         embedding_service,
         document_store,
     ) = create_service()
@@ -229,6 +240,11 @@ def test_ingest_runs_complete_pipeline(tmp_path):
     assert result.chunk_count == 1
 
     assert processor.process_count == 1
+    assert chunker.chunk_count == 1
+    assert (
+        chunker.last_knowledge_base_id
+        == "kb_default"
+    )
     assert embedding_service.embed_count == 1
 
     assert document_store.claim_count == 1
@@ -242,6 +258,7 @@ def test_ingest_uses_supplied_filename(tmp_path):
 
     (
         service,
+        _,
         _,
         _,
         document_store,
@@ -261,8 +278,15 @@ def test_ingest_uses_supplied_filename(tmp_path):
     assert stored.filename == "supplied-name.txt"
     assert stored.status == "completed"
 
+
 def test_ingest_rejects_missing_file(tmp_path):
-    service, _, _, document_store = create_service()
+    (
+        service,
+        _,
+        _,
+        _,
+        document_store,
+    ) = create_service()
 
     file_path = tmp_path / "missing.txt"
 
@@ -281,7 +305,13 @@ def test_ingest_does_not_leave_claim_when_pipeline_fails(
     file_path = tmp_path / "test.txt"
     file_path.write_text("hello world")
 
-    service, processor, _, document_store = create_service()
+    (
+        service,
+        processor,
+        _,
+        _,
+        document_store,
+    ) = create_service()
 
     processor.should_fail = True
 
@@ -308,7 +338,13 @@ def test_ingest_calculates_and_persists_content_hash(
     file_path = tmp_path / "test.txt"
     file_path.write_text("hello world")
 
-    service, _, _, document_store = create_service()
+    (
+        service,
+        _,
+        _,
+        _,
+        document_store,
+    ) = create_service()
 
     service.ingest(
         file_path=file_path,
@@ -332,7 +368,13 @@ def test_ingest_duplicate_returns_existing_document(
     file_path = tmp_path / "test.txt"
     file_path.write_text("same content")
 
-    service, processor, _, document_store = create_service()
+    (
+        service,
+        processor,
+        _,
+        _,
+        document_store,
+    ) = create_service()
 
     first_result = service.ingest(
         file_path=file_path,
@@ -366,9 +408,13 @@ def test_ingest_duplicate_skips_pipeline(
     file_path = tmp_path / "test.txt"
     file_path.write_text("duplicate content")
 
-    service, processor, embedding_service, _ = (
-        create_service()
-    )
+    (
+        service,
+        processor,
+        _,
+        embedding_service,
+        _,
+    ) = create_service()
 
     service.ingest(file_path)
 
@@ -388,9 +434,13 @@ def test_ingest_same_filename_with_different_content_creates_new_document(
 
     file_path.write_text("content A")
 
-    service, processor, _, document_store = (
-        create_service()
-    )
+    (
+        service,
+        processor,
+        _,
+        _,
+        document_store,
+    ) = create_service()
 
     first_result = service.ingest(
         file_path=file_path,
@@ -422,12 +472,11 @@ def test_ingest_duplicate_in_progress_is_rejected(
         processor,
         _,
         _,
+        _,
     ) = create_service(
         document_store=document_store,
     )
 
-    # Simulate another ingestion request already owning
-    # the claim.
     content_hash = (
         service._calculate_content_hash(file_path)
     )
@@ -437,6 +486,7 @@ def test_ingest_duplicate_in_progress_is_rejected(
         filename="existing.txt",
         stored_path=str(file_path),
         created_at=datetime.now(),
+        knowledge_base_id="kb_default",
         content_hash=content_hash,
         status="processing",
     )
@@ -466,7 +516,13 @@ def test_ingest_marks_document_completed_after_success(
     file_path = tmp_path / "test.txt"
     file_path.write_text("hello")
 
-    service, _, _, document_store = create_service()
+    (
+        service,
+        _,
+        _,
+        _,
+        document_store,
+    ) = create_service()
 
     result = service.ingest(file_path)
 
@@ -487,9 +543,13 @@ def test_ingest_releases_claim_when_embedding_fails(
     file_path = tmp_path / "test.txt"
     file_path.write_text("hello")
 
-    service, _, embedding_service, document_store = (
-        create_service()
-    )
+    (
+        service,
+        _,
+        _,
+        embedding_service,
+        document_store,
+    ) = create_service()
 
     embedding_service.should_fail = True
 
@@ -504,6 +564,7 @@ def test_ingest_releases_claim_when_embedding_fails(
     assert document_store.release_claim_count == 1
     assert len(document_store.documents_by_hash) == 0
 
+
 def test_ingest_cleans_vector_store_when_lexical_build_fails(
     tmp_path,
 ):
@@ -515,14 +576,12 @@ def test_ingest_cleans_vector_store_when_lexical_build_fails(
 
     vector_store = FakeVectorStore()
 
-    retrieval_manager = (
-        FakeRetrievalIndexManager()
-    )
-
+    retrieval_manager = FakeRetrievalIndexManager()
     retrieval_manager.should_fail = True
 
     (
         service,
+        _,
         _,
         _,
         document_store,
@@ -540,16 +599,15 @@ def test_ingest_cleans_vector_store_when_lexical_build_fails(
     assert vector_store.delete_count == 1
 
     assert (
-        len(
-            vector_store.deleted_doc_ids
-        )
+        len(vector_store.deleted_doc_ids)
         == 1
     )
 
     assert (
         document_store.release_claim_count
         == 1
-    )    
+    )
+
 
 def test_cleanup_failure_does_not_hide_original_error(
     tmp_path,
@@ -573,14 +631,12 @@ def test_cleanup_failure_does_not_hide_original_error(
 
     vector_store = BrokenVectorStore()
 
-    retrieval_manager = (
-        FakeRetrievalIndexManager()
-    )
-
+    retrieval_manager = FakeRetrievalIndexManager()
     retrieval_manager.should_fail = True
 
     (
         service,
+        _,
         _,
         _,
         document_store,
@@ -600,6 +656,7 @@ def test_cleanup_failure_does_not_hide_original_error(
         == 1
     )
 
+
 def test_success_does_not_trigger_cleanup(
     tmp_path,
 ):
@@ -610,13 +667,11 @@ def test_success_does_not_trigger_cleanup(
     )
 
     vector_store = FakeVectorStore()
-
-    retrieval_manager = (
-        FakeRetrievalIndexManager()
-    )
+    retrieval_manager = FakeRetrievalIndexManager()
 
     (
         service,
+        _,
         _,
         _,
         document_store,
@@ -642,4 +697,74 @@ def test_success_does_not_trigger_cleanup(
     assert (
         document_store.mark_completed_count
         == 1
-    )        
+    )
+
+
+def test_ingest_persists_knowledge_base_id(
+    tmp_path,
+):
+    file_path = tmp_path / "test.txt"
+    file_path.write_text(
+        "knowledge base content"
+    )
+
+    (
+        service,
+        _,
+        chunker,
+        _,
+        document_store,
+    ) = create_service()
+
+    service.ingest(
+        file_path=file_path,
+        filename="test.txt",
+        knowledge_base_id="kb_company",
+    )
+
+    stored = next(
+        iter(document_store.documents_by_hash.values())
+    )
+
+    assert stored.knowledge_base_id == "kb_company"
+    assert (
+        chunker.last_knowledge_base_id
+        == "kb_company"
+    )
+
+
+def test_ingest_persists_knowledge_base_id_to_postgres(
+    tmp_path,
+    postgres_session_factory,
+):
+    file_path = tmp_path / "company-policy.txt"
+    file_path.write_text(
+        "Company policy for production verification."
+    )
+
+    (
+        service,
+        _,
+        _,
+        _,
+        _,
+    ) = create_service()
+
+    from app.document_store import DocumentStore
+
+    document_store = DocumentStore(
+        session_factory=postgres_session_factory,
+    )
+
+    service.document_store = document_store
+
+    result = service.ingest(
+        file_path=file_path,
+        filename="company-policy.txt",
+        knowledge_base_id="kb_default",
+    )
+
+    stored = document_store.get(result.doc_id)
+
+    assert stored is not None
+    assert stored.knowledge_base_id == "kb_default"

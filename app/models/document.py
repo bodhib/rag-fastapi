@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -45,4 +50,14 @@ class DocumentModel(Base):
         String(32),
         nullable=False,
         default="completed",
+    )
+
+    knowledge_base_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(
+            "knowledge_bases.knowledge_base_id",
+            ondelete="RESTRICT",
+        ),
+        nullable=False,
+        index=True,
     )

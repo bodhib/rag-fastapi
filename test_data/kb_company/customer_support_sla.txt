@@ -1,0 +1,11 @@
+ACME INDIA — CUSTOMER SUPPORT SERVICE LEVELS
+Version: 2.0
+
+Priority P1
+A complete service outage affecting multiple customers is treated as P1. The support team should acknowledge a P1 ticket within 15 minutes and provide updates at least every 30 minutes until service is restored.
+
+Priority P2
+A major degradation without a complete outage is treated as P2. Target acknowledgement is one hour.
+
+Priority P3
+Routine questions and minor issues are treated as P3. Target acknowledgement is four business hours.

@@ -1,9 +1,11 @@
+from datetime import datetime
 from io import BytesIO
 
 from fastapi.testclient import TestClient
 
-import app.lifecycle as lifecycle
 from app.main import app
+
+from app.models.knowledge_base import KnowledgeBaseModel
 
 from app.background_ingestion import BackgroundIngestionService
 from app.bm25_retriever import BM25Retriever
@@ -167,46 +169,25 @@ class FakeGenerator:
         )
 
 
-def test_fastapi_lifespan_starts_successfully(
-tmp_path,
-monkeypatch,
-):
+def test_fastapi_lifespan_starts_successfully():
     """
     Verify that FastAPI starts successfully through its
-    configured lifespan using isolated test resources.
+    configured lazy lifespan.
     """
-
-
-    vector_store = ChromaVectorStore(
-        persist_directory=tmp_path / "chroma",
-    )
-
-    bm25_retriever = BM25Retriever()
-
-    retrieval_index_manager = RetrievalIndexManager(
-        lexical_index=bm25_retriever,
-    )
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_retrieval_index_manager",
-        lambda: retrieval_index_manager,
-    )
 
     with TestClient(app) as client:
         response = client.get("/health")
 
-        assert response.status_code == 200
+    assert response.status_code == 200
 
-        assert response.json() == {
-            "status": "ok",
-            "service": "rag-api",
-        }
+    assert response.json() == {
+        "status": "ok",
+        "service": "rag-api",
+    }
 
 
 def test_document_upload_then_query(
 tmp_path,
-monkeypatch,
 ):
     """
     Test the complete FastAPI document ingestion and query flow.
@@ -257,6 +238,19 @@ monkeypatch,
         autocommit=False,
         autoflush=False,
     )
+
+    with session_factory() as session:
+        session.add(
+            KnowledgeBaseModel(
+                knowledge_base_id="kb_default",
+                name="My Documents",
+                slug="my-documents",
+                description=None,
+                active=True,
+                created_at=datetime.now(),
+            )
+        )
+        session.commit()
 
     document_store = DocumentStore(
         session_factory=session_factory,
@@ -368,16 +362,6 @@ monkeypatch,
         role=UserRole.ADMIN,
     )
 
-    # ---------------------------------------------------------
-    # 7. Override lifecycle retrieval manager
-    # ---------------------------------------------------------
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_retrieval_index_manager",
-        lambda: retrieval_index_manager,
-    )
-
     try:
         # -----------------------------------------------------
         # 8. Start the actual FastAPI application
@@ -403,6 +387,9 @@ monkeypatch,
 
             response = client.post(
                 "/documents/upload",
+                data={
+                    "knowledge_base_id": "kb_default",
+                },
                 files={
                     "file": (
                         "annual_leave.txt",
@@ -482,6 +469,10 @@ monkeypatch,
                 "annual_leave.txt"
             )
 
+            assert stored_document.knowledge_base_id == (
+                "kb_default"
+            )
+
             # -------------------------------------------------
             # 13. Verify Chroma contains the chunks
             # -------------------------------------------------
@@ -503,6 +494,11 @@ monkeypatch,
                 for chunk in stored_chunks
             )
 
+            assert all(
+                chunk.knowledge_base_id == "kb_default"
+                for chunk in stored_chunks
+            )
+
             # -------------------------------------------------
             # 14. Query the uploaded document
             # -------------------------------------------------
@@ -513,7 +509,8 @@ monkeypatch,
                     "query": (
                         "How many unused annual leave "
                         "days can employees carry forward?"
-                    )
+                    ),
+                    "knowledge_base_id": "kb_default",
                 },
             )
 
@@ -561,31 +558,14 @@ monkeypatch,
 
 
 def test_fastapi_lifespan_clears_dependency_caches(
-monkeypatch,
+    monkeypatch,
 ):
+    import app.lifecycle as lifecycle
+
     cleanup_called = []
-
-
-    def fake_get_retrieval_index_manager():
-        return object()
-
-    def fake_get_generator():
-        return object()
 
     def fake_clear_dependency_caches():
         cleanup_called.append(True)
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_retrieval_index_manager",
-        fake_get_retrieval_index_manager,
-    )
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_generator",
-        fake_get_generator,
-    )
 
     monkeypatch.setattr(
         lifecycle,
@@ -598,72 +578,4 @@ monkeypatch,
 
     assert response.status_code == 200
     assert cleanup_called == [True]
-
-
-def test_lifespan_fails_when_generator_initialization_fails(
-monkeypatch,
-) -> None:
-    import pytest
-
-
-    def fake_get_retrieval_index_manager():
-        return object()
-
-    def fake_get_generator():
-        raise ValueError(
-            "Gemini API key is not configured"
-        )
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_retrieval_index_manager",
-        fake_get_retrieval_index_manager,
-    )
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_generator",
-        fake_get_generator,
-    )
-
-    with pytest.raises(
-        ValueError,
-        match="Gemini API key",
-    ):
-        with TestClient(app):
-            pass
-
-
-def test_lifespan_fails_when_retrieval_initialization_fails(
-monkeypatch,
-) -> None:
-    import pytest
-
-
-    def fake_get_retrieval_index_manager():
-        raise RuntimeError(
-            "Retrieval index initialization failed"
-        )
-
-    def fake_get_generator():
-        return object()
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_retrieval_index_manager",
-        fake_get_retrieval_index_manager,
-    )
-
-    monkeypatch.setattr(
-        lifecycle,
-        "get_generator",
-        fake_get_generator,
-    )
-
-    with pytest.raises(
-        RuntimeError,
-        match="Retrieval index initialization failed",
-    ):
-        with TestClient(app):
-            pass
 

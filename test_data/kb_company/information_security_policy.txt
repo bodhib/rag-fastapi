@@ -1,0 +1,15 @@
+ACME INDIA — INFORMATION SECURITY STANDARD
+Version: 4.2
+Owner: Information Security
+
+Multi-Factor Authentication
+MFA is mandatory for corporate email, VPN access, source-code repositories, and production administration systems.
+
+Password Security
+Employees must not share passwords. Corporate passwords must not be reused for personal services. Passwords must be stored only in the approved enterprise password manager.
+
+Data Classification
+Confidential and Restricted information must be stored only in approved company systems. Customer personal data must not be copied to personal cloud storage.
+
+Incident Reporting
+Suspected phishing, credential compromise, malware, or accidental disclosure must be reported to the Security Operations team immediately through the security incident channel.

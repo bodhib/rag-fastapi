@@ -1,0 +1,25 @@
+Candidate Name: Sneha Ullal
+
+Current Role: Senior Devops Engineer
+
+Location: Chennai, India
+
+Total Experience: 6 years
+
+Skills:
+Python
+FastAPI
+Django
+PostgreSQL
+Docker
+AWS
+REST APIs
+Microservices
+
+Education:
+B.Tech in Computer Science
+
+Notice Period: 60days
+
+Summary:
+Sneha is a backend devops engineer with 6 years of experience building Python-based APIs and microservices. He has strong experience with FastAPI, PostgreSQL, Docker and AWS. He has worked on scalable backend systems and REST APIs.

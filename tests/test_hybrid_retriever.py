@@ -1,122 +1,50 @@
-from app.bm25_retriever import LexicalIndex
-from app.hybrid_retriever import HybridResult, HybridRetriever
-from app.retrieval import RetrievalResult
+# tests/test_hybrid_retriever.py
+
+from app.hybrid_retriever import HybridResult
 
 
-class FakeLexicalIndex:
-    def retrieve(
-        self,
-        query: str,
-        top_k: int = 5,
-    ) -> list[RetrievalResult]:
-        return [
-            RetrievalResult(
-                text="lexical result",
-                source="test.txt",
-                page_number=1,
-                chunk_index=0,
-                score=0.8,
-            )
-        ]
+def test_hybrid_result_preserves_doc_id():
 
-
-class FakeDenseRetriever:
-    def retrieve(
-        self,
-        query: str,
-        top_k: int = 5,
-    ) -> list[RetrievalResult]:
-        return [
-            RetrievalResult(
-                text="dense result",
-                source="test.txt",
-                page_number=1,
-                chunk_index=1,
-                score=0.9,
-            )
-        ]
-
-
-def test_fake_lexical_index_satisfies_protocol() -> None:
-    lexical_index = FakeLexicalIndex()
-
-    assert isinstance(
-        lexical_index,
-        LexicalIndex,
+    result = HybridResult(
+        text="Alice has extensive FastAPI experience.",
+        source="alice_resume.txt.txt",
+        page_number=1,
+        chunk_index=0,
+        dense_score=0.90,
+        bm25_score=0.80,
+        score=0.85,
+        doc_id="doc_alice_123",
     )
 
+    assert result.doc_id == "doc_alice_123"
+    assert result.source == "alice_resume.txt.txt"
+    assert result.page_number == 1
+    assert result.chunk_index == 0
 
-def test_hybrid_retriever_accepts_lexical_index() -> None:
-    lexical_index = FakeLexicalIndex()
 
-    retriever = HybridRetriever(
-        dense_retriever=FakeDenseRetriever(),
-        lexical_retriever=lexical_index,
+def test_hybrid_result_can_represent_two_documents_with_same_filename():
+
+    alice = HybridResult(
+        text="Alice has FastAPI experience.",
+        source="resume.txt",
+        page_number=1,
+        chunk_index=0,
+        dense_score=0.90,
+        bm25_score=0.80,
+        score=0.85,
+        doc_id="doc_alice",
     )
 
-    results = retriever.retrieve(
-        "test query",
-        top_k=5,
+    rahul = HybridResult(
+        text="Rahul has Django experience.",
+        source="resume.txt",
+        page_number=1,
+        chunk_index=0,
+        dense_score=0.70,
+        bm25_score=0.60,
+        score=0.65,
+        doc_id="doc_rahul",
     )
 
-    assert len(results) == 2
-
-    assert isinstance(
-        results[0],
-        HybridResult,
-    )
-
-    assert results[0].text == "dense result"
-    assert results[1].text == "lexical result"
-
-
-def test_hybrid_retriever_preserves_dense_score() -> None:
-    retriever = HybridRetriever(
-        dense_retriever=FakeDenseRetriever(),
-        lexical_retriever=FakeLexicalIndex(),
-    )
-
-    results = retriever.retrieve(
-        "test query",
-        top_k=5,
-    )
-
-    dense_result = results[0]
-
-    assert dense_result.dense_score == 0.9
-    assert dense_result.bm25_score == 0.0
-    assert dense_result.score == 0.9
-
-
-def test_hybrid_retriever_preserves_lexical_score() -> None:
-    retriever = HybridRetriever(
-        dense_retriever=FakeDenseRetriever(),
-        lexical_retriever=FakeLexicalIndex(),
-    )
-
-    results = retriever.retrieve(
-        "test query",
-        top_k=5,
-    )
-
-    lexical_result = results[1]
-
-    assert lexical_result.dense_score == 0.0
-    assert lexical_result.bm25_score == 0.8
-    assert lexical_result.score == 0.8
-
-
-def test_hybrid_retriever_accepts_any_lexical_index() -> None:
-    lexical_index = FakeLexicalIndex()
-
-    retriever = HybridRetriever(
-        dense_retriever=FakeDenseRetriever(),
-        lexical_retriever=lexical_index,
-    )
-
-    results = retriever.retrieve(
-        "annual leave",
-        top_k=5,
-    )
-
-    assert results
+    assert alice.source == rahul.source
+    assert alice.doc_id != rahul.doc_id

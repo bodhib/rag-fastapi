@@ -1,0 +1,21 @@
+Candidate Name: Rahul Sharma
+Current Role: Senior Backend Engineer
+Location: Bengaluru, India
+Total Experience: 6 years
+
+Skills:
+Python
+FastAPI
+PostgreSQL
+Docker
+AWS
+REST APIs
+Microservices
+
+Education:
+B.Tech in Computer Science
+
+Notice Period: 30 days
+
+Summary:
+Rahul Sharma is a senior backend engineer with 6 years of experience building Python-based backend applications and microservices. He has strong experience with FastAPI, PostgreSQL, Docker and AWS. He has designed and developed scalable REST APIs and backend systems.

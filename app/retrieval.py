@@ -29,15 +29,12 @@ class RetrievalResult:
     page_number: int
     chunk_index: int
     score: float
+    doc_id: str = ""
 
 
 class DenseRetriever:
     """
     Retrieve document chunks using dense vector similarity.
-
-    The retriever coordinates query embedding generation and vector
-    database search while keeping those implementation details away
-    from the API layer.
     """
 
     def __init__(
@@ -45,14 +42,6 @@ class DenseRetriever:
         embedding_service: EmbeddingService,
         vector_store: VectorStore,
     ) -> None:
-        """
-        Initialize the dense retriever.
-
-        Args:
-            embedding_service: Service used to embed user queries.
-            vector_store: Vector store used for similarity search.
-        """
-
         self.embedding_service = embedding_service
         self.vector_store = vector_store
 
@@ -60,61 +49,59 @@ class DenseRetriever:
         self,
         query: str,
         top_k: int = 5,
+        knowledge_base_id: str = "kb_default",
+        allowed_doc_ids: set[str] | None = None,
     ) -> list[RetrievalResult]:
-        """
-        Retrieve the most semantically similar document chunks.
+            if not query.strip():
+                raise ValueError(
+                    "query cannot be empty"
+                )
 
-        Args:
-            query: Natural-language user question.
-            top_k: Maximum number of results to retrieve.
+            if top_k <= 0:
+                raise ValueError(
+                    "top_k must be greater than zero"
+                )
 
-        Returns:
-            Dense retrieval results ordered by similarity.
+            if (
+                knowledge_base_id is not None
+                and not knowledge_base_id.strip()
+            ):
+                raise ValueError(
+                    "knowledge_base_id cannot be empty"
+                )
 
-        Raises:
-            ValueError: If the query is empty or top_k is invalid.
-        """
+            if allowed_doc_ids is not None:
+                allowed_doc_ids = {
+                    doc_id.strip()
+                    for doc_id in allowed_doc_ids
+                    if doc_id and doc_id.strip()
+                }
 
-        if not query.strip():
-            raise ValueError(
-                "query cannot be empty"
+                if not allowed_doc_ids:
+                    return []
+
+            query_embedding = (
+                self.embedding_service.embed_text(
+                    query
+                )
             )
 
-        if top_k <= 0:
-            raise ValueError(
-                "top_k must be greater than zero"
+            raw_results = self.vector_store.search(
+                query_embedding=query_embedding,
+                top_k=top_k,
+                knowledge_base_id=knowledge_base_id,
+                allowed_doc_ids=allowed_doc_ids,
             )
 
-        query_embedding = (
-            self.embedding_service.embed_text(
-                query
-            )
-        )
-
-        raw_results = self.vector_store.search(
-            query_embedding=query_embedding,
-            top_k=top_k,
-        )
-
-        return [
-            self._convert_result(result)
-            for result in raw_results
-        ]
-
+            return [
+                self._convert_result(result)
+                for result in raw_results
+            ]
+    
     @staticmethod
     def _convert_result(
         result: dict,
     ) -> RetrievalResult:
-        """
-        Convert a vector-store result into a retrieval result.
-
-        Args:
-            result: Raw result returned by the vector store.
-
-        Returns:
-            Structured retrieval result.
-        """
-
         metadata = result["metadata"]
 
         distance = float(
@@ -135,4 +122,5 @@ class DenseRetriever:
                 metadata["chunk_index"]
             ),
             score=similarity_score,
+            doc_id=metadata["doc_id"],
         )

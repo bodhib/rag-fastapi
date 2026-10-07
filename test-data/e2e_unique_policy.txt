@@ -1,9 +1,0 @@
-Unique Retrieval Validation Policy
-
-The Aurora Lantern Protocol requires employees to submit a leave request through the Blue Mango Portal at least 11 working days before the requested date.
-
-For emergency cases, the employee must include the phrase "ORBIT-742" in the request notes.
-
-The compliance team reviews all requests containing the ORBIT-742 marker.
-
-This document is intended for end-to-end retrieval validation.

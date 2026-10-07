@@ -41,6 +41,7 @@ def test_create_and_get_job(tmp_path) -> None:
             filename="policy.txt",
             file_path="tests/uploads/policy.txt",
             status="pending",
+            knowledge_base_id="kb_default",
             created_at=created_at,
         )
     )
@@ -62,6 +63,7 @@ def test_mark_processing(tmp_path) -> None:
             filename="policy.txt",
             file_path="policy.txt",
             status="pending",
+            knowledge_base_id="kb_default",
         )
     )
 
@@ -88,6 +90,7 @@ def test_mark_completed(tmp_path) -> None:
             filename="policy.txt",
             file_path="policy.txt",
             status="pending",
+            knowledge_base_id="kb_default",
         )
     )
 
@@ -121,6 +124,7 @@ def test_mark_failed(tmp_path) -> None:
             filename="broken.txt",
             file_path="broken.txt",
             status="pending",
+            knowledge_base_id="kb_default",
         )
     )
 

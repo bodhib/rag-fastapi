@@ -17,6 +17,7 @@ class IngestionJob:
     filename: str
     file_path: str
     status: str
+    knowledge_base_id: str
     doc_id: str | None = None
     page_count: int | None = None
     chunk_count: int | None = None
@@ -48,6 +49,7 @@ class IngestionJobStore:
                     filename=job.filename,
                     file_path=job.file_path,
                     status=job.status,
+                    knowledge_base_id=job.knowledge_base_id,
                     doc_id=job.doc_id,
                     page_count=job.page_count,
                     chunk_count=job.chunk_count,
@@ -156,6 +158,7 @@ class IngestionJobStore:
             filename=job.filename,
             file_path=job.file_path,
             status=job.status,
+            knowledge_base_id=job.knowledge_base_id,
             doc_id=job.doc_id,
             page_count=job.page_count,
             chunk_count=job.chunk_count,

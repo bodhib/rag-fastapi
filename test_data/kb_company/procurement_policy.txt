@@ -1,0 +1,11 @@
+ACME INDIA — PROCUREMENT POLICY
+Version: 3.1
+
+Purchase Orders
+Purchases above INR 50,000 require an approved purchase order before the supplier commits to delivery, except where an approved emergency procurement process applies.
+
+Vendor Selection
+Procurement should obtain competitive quotations for material purchases and maintain documentation supporting the supplier selection.
+
+Software
+Employees must not purchase software subscriptions using personal cards when a company procurement route is available.

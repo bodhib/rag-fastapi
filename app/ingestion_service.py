@@ -21,6 +21,8 @@ from app.document_store import (
 )
 from app.retrieval_index import RetrievalIndexManager
 
+from app.candidate_store import CandidateStore
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -45,6 +47,7 @@ class DocumentIngestionService:
         vector_store: VectorStore,
         retrieval_index_manager: RetrievalIndexManager,
         document_store: DocumentStore,
+        candidate_store: CandidateStore,
     ) -> None:
         self.document_processor = document_processor
         self.chunker = chunker
@@ -52,11 +55,13 @@ class DocumentIngestionService:
         self.vector_store = vector_store
         self.retrieval_index_manager = retrieval_index_manager
         self.document_store = document_store
+        self.candidate_store = candidate_store
 
     def ingest(
         self,
         file_path: Path,
         filename: str | None = None,
+        knowledge_base_id: str = "kb_default",
     ) -> IngestionResult:
         if not file_path.exists():
             raise FileNotFoundError(
@@ -80,6 +85,7 @@ class DocumentIngestionService:
             filename=original_filename,
             stored_path=str(file_path),
             created_at=self.document_store.create_timestamp(),
+            knowledge_base_id=knowledge_base_id,
             content_hash=content_hash,
             status="processing",
         )
@@ -105,6 +111,7 @@ class DocumentIngestionService:
             chunks = self.chunker.chunk(
                 doc_id=claimed_document.doc_id,
                 pages=pages,
+                knowledge_base_id=knowledge_base_id,
             )
 
             embedded_chunks = self.embedding_service.embed_chunks(chunks)
@@ -120,6 +127,12 @@ class DocumentIngestionService:
 
             self.document_store.mark_completed(
                 claimed_document.doc_id
+            )
+
+            self.candidate_store.attach_resume_document(
+                knowledge_base_id=knowledge_base_id,
+                resume_filename=claimed_document.filename,
+                resume_document_id=claimed_document.doc_id,
             )
 
         except Exception:

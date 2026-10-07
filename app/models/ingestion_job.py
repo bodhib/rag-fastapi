@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -34,6 +34,16 @@ class IngestionJobModel(Base):
     status: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
+    )
+
+    knowledge_base_id: Mapped[str] = mapped_column(
+    String(64),
+    ForeignKey(
+        "knowledge_bases.knowledge_base_id",
+        ondelete="RESTRICT",
+    ),
+    nullable=False,
+    index=True,
     )
 
     doc_id: Mapped[str | None] = mapped_column(

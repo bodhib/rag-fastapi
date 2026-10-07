@@ -2,46 +2,52 @@ from app.bm25_retriever import BM25Retriever
 from app.chunker import DocumentChunk
 
 
-def create_chunks() -> list[DocumentChunk]:
-    """Create deterministic test chunks."""
+def create_chunk(
+    doc_id: str,
+    text: str,
+    chunk_index: int,
+    knowledge_base_id: str = "kb_default",
+) -> DocumentChunk:
+    return DocumentChunk(
+        doc_id=doc_id,
+        text=text,
+        source=f"{doc_id}.txt",
+        page_number=1,
+        chunk_index=chunk_index,
+        knowledge_base_id=knowledge_base_id,
+    )
 
+
+def create_chunks() -> list[DocumentChunk]:
     return [
-        DocumentChunk(
+        create_chunk(
             doc_id="doc_001",
             text=(
                 "Customers can request a refund "
                 "within 30 days of purchase."
             ),
-            source="policy.pdf",
-            page_number=4,
             chunk_index=0,
         ),
-        DocumentChunk(
+        create_chunk(
             doc_id="doc_002",
             text=(
                 "The office is open from "
                 "nine in the morning until five."
             ),
-            source="office.pdf",
-            page_number=2,
             chunk_index=1,
         ),
-        DocumentChunk(
+        create_chunk(
             doc_id="doc_003",
             text=(
                 "Product SKU FBH001-RED is "
                 "available for purchase."
             ),
-            source="catalog.txt",
-            page_number=1,
             chunk_index=2,
         ),
     ]
 
 
 def test_bm25_returns_matching_results() -> None:
-    """Verify BM25 retrieves lexically matching chunks."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -55,15 +61,13 @@ def test_bm25_returns_matching_results() -> None:
 
     assert (
         results[0].source
-        == "policy.pdf"
+        == "doc_001.txt"
     )
 
     assert "refund" in results[0].text.lower()
 
 
 def test_bm25_handles_exact_terms() -> None:
-    """Verify BM25 works well with exact identifiers."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -77,7 +81,7 @@ def test_bm25_handles_exact_terms() -> None:
 
     assert (
         results[0].source
-        == "catalog.txt"
+        == "doc_003.txt"
     )
 
     assert (
@@ -87,8 +91,6 @@ def test_bm25_handles_exact_terms() -> None:
 
 
 def test_bm25_preserves_metadata() -> None:
-    """Verify retrieved metadata is preserved."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -102,14 +104,12 @@ def test_bm25_preserves_metadata() -> None:
 
     result = results[0]
 
-    assert result.source == "policy.pdf"
-    assert result.page_number == 4
+    assert result.source == "doc_001.txt"
+    assert result.page_number == 1
     assert result.chunk_index == 0
 
 
 def test_bm25_results_have_scores() -> None:
-    """Verify BM25 produces positive relevance scores."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -124,8 +124,6 @@ def test_bm25_results_have_scores() -> None:
 
 
 def test_bm25_results_are_ranked() -> None:
-    """Verify results are ordered by decreasing BM25 score."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -149,8 +147,6 @@ def test_bm25_results_are_ranked() -> None:
 
 
 def test_bm25_unmatched_query_returns_empty() -> None:
-    """Verify unmatched queries do not return irrelevant chunks."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -163,9 +159,97 @@ def test_bm25_unmatched_query_returns_empty() -> None:
     assert results == []
 
 
-def test_empty_query_is_rejected() -> None:
-    """Verify empty queries are rejected."""
+def test_bm25_filters_results_by_knowledge_base() -> None:
+    chunks = [
+        create_chunk(
+            doc_id="doc_default",
+            text="Annual leave policy for default knowledge base.",
+            chunk_index=0,
+            knowledge_base_id="kb_default",
+        ),
+        create_chunk(
+            doc_id="doc_company",
+            text="Annual leave policy for company knowledge base.",
+            chunk_index=0,
+            knowledge_base_id="kb_company",
+        ),
+    ]
 
+    retriever = BM25Retriever(chunks)
+
+    results = retriever.retrieve(
+        "annual leave",
+        top_k=5,
+        knowledge_base_id="kb_company",
+    )
+
+    assert len(results) == 1
+    assert results[0].source == "doc_company.txt"
+
+
+def test_bm25_filtering_still_returns_top_k_matching_kb() -> None:
+    chunks = [
+        create_chunk(
+            doc_id="doc_default_1",
+            text="Annual leave policy default one.",
+            chunk_index=0,
+            knowledge_base_id="kb_default",
+        ),
+        create_chunk(
+            doc_id="doc_default_2",
+            text="Annual leave policy default two.",
+            chunk_index=1,
+            knowledge_base_id="kb_default",
+        ),
+        create_chunk(
+            doc_id="doc_company_1",
+            text="Annual leave company one.",
+            chunk_index=0,
+            knowledge_base_id="kb_company",
+        ),
+        create_chunk(
+            doc_id="doc_company_2",
+            text="Annual leave company two.",
+            chunk_index=1,
+            knowledge_base_id="kb_company",
+        ),
+    ]
+
+    retriever = BM25Retriever(chunks)
+
+    results = retriever.retrieve(
+        "annual leave",
+        top_k=2,
+        knowledge_base_id="kb_company",
+    )
+
+    assert len(results) == 2
+
+    assert all(
+        result.source.startswith("doc_company")
+        for result in results
+    )
+
+
+def test_empty_knowledge_base_id_is_rejected() -> None:
+    retriever = BM25Retriever(
+        create_chunks()
+    )
+
+    try:
+        retriever.retrieve(
+            "refund",
+            knowledge_base_id="   ",
+        )
+        assert False
+    except ValueError as exc:
+        assert (
+            str(exc)
+            == "knowledge_base_id cannot be empty"
+        )
+
+
+def test_empty_query_is_rejected() -> None:
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -178,8 +262,6 @@ def test_empty_query_is_rejected() -> None:
 
 
 def test_whitespace_query_is_rejected() -> None:
-    """Verify whitespace-only queries are rejected."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -192,8 +274,6 @@ def test_whitespace_query_is_rejected() -> None:
 
 
 def test_invalid_top_k_is_rejected() -> None:
-    """Verify invalid top_k values are rejected."""
-
     retriever = BM25Retriever(
         create_chunks()
     )
@@ -209,8 +289,6 @@ def test_invalid_top_k_is_rejected() -> None:
 
 
 def test_retrieve_before_build_is_rejected() -> None:
-    """Verify retrieval cannot happen before index creation."""
-
     retriever = BM25Retriever()
 
     try:
@@ -224,8 +302,6 @@ def test_retrieve_before_build_is_rejected() -> None:
 
 
 def test_empty_chunks_are_rejected() -> None:
-    """Verify empty chunk collections are rejected."""
-
     retriever = BM25Retriever()
 
     try:
@@ -238,19 +314,6 @@ def test_empty_chunks_are_rejected() -> None:
             str(exc)
             == "Cannot build BM25 index from empty chunk list"
         )
-
-def create_chunk(
-    doc_id: str,
-    text: str,
-    chunk_index: int,
-) -> DocumentChunk:
-    return DocumentChunk(
-        doc_id=doc_id,
-        text=text,
-        source=f"{doc_id}.txt",
-        page_number=1,
-        chunk_index=chunk_index,
-    )
 
 
 def test_remove_document_removes_only_target_document() -> None:
@@ -271,9 +334,6 @@ def test_remove_document_removes_only_target_document() -> None:
 
     retriever.remove_document("doc_a")
 
-    print("CHUNKS:", retriever._chunks)
-    print("BM25:", retriever._bm25)
-
     results = retriever.retrieve("annual leave")
 
     assert results == []
@@ -282,6 +342,7 @@ def test_remove_document_removes_only_target_document() -> None:
 
     assert len(results) == 1
     assert results[0].source == "doc_b.txt"
+
 
 def test_remove_last_document_clears_bm25_index() -> None:
     chunks = [
@@ -297,4 +358,4 @@ def test_remove_last_document_clears_bm25_index() -> None:
     retriever.remove_document("doc_a")
 
     assert retriever._chunks == []
-    assert retriever._bm25 is None        
+    assert retriever._bm25 is None

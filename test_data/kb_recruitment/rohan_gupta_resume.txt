@@ -1,0 +1,19 @@
+RESUME — ROHAN GUPTA
+Location: Pune, India
+Current title: Data Engineer
+Current company: RetailScale
+Experience: 4 years
+
+Skills: Python, SQL, PostgreSQL, Spark, Airflow, Kafka, AWS, Snowflake, dbt
+
+Summary
+Data engineer with 4 years of experience building batch and streaming data pipelines. Strong SQL and PostgreSQL background with practical Kafka and Airflow experience.
+
+Recent work
+Built customer analytics pipelines using Spark and Airflow and maintained Kafka ingestion jobs. Designed warehouse models for reporting and operational analytics.
+
+Education
+B.E. in Information Technology, Pune University.
+
+Availability
+60 days notice.

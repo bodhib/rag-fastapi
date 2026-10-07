@@ -1,0 +1,1 @@
+from app.models.candidate import CandidateModel

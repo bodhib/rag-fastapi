@@ -1,11 +1,8 @@
-from pathlib import Path
-
 import pytest
 
 from app.chunker import DocumentChunk, RecursiveChunker
-from app.document_processor import ProcessedPage
-
 from app.config import Settings
+from app.document_processor import ProcessedPage
 
 
 def create_pages() -> list[ProcessedPage]:
@@ -39,6 +36,7 @@ def test_chunker_creates_chunks():
     chunks = chunker.chunk(
         doc_id="doc_001",
         pages=create_pages(),
+        knowledge_base_id="kb_default",
     )
 
     assert chunks
@@ -63,6 +61,7 @@ def test_chunk_metadata_is_preserved():
                 page_number=3,
             )
         ],
+        knowledge_base_id="kb_company",
     )
 
     assert len(chunks) == 1
@@ -73,6 +72,7 @@ def test_chunk_metadata_is_preserved():
     assert chunk.source == "policy.pdf"
     assert chunk.page_number == 3
     assert chunk.chunk_index == 0
+    assert chunk.knowledge_base_id == "kb_company"
 
 
 def test_chunk_indexes_are_sequential():
@@ -84,6 +84,7 @@ def test_chunk_indexes_are_sequential():
     chunks = chunker.chunk(
         doc_id="doc_001",
         pages=create_pages(),
+        knowledge_base_id="kb_default",
     )
 
     indexes = [
@@ -103,10 +104,31 @@ def test_doc_id_is_preserved_on_every_chunk():
     chunks = chunker.chunk(
         doc_id="doc_123",
         pages=create_pages(),
+        knowledge_base_id="kb_default",
     )
 
     assert all(
         chunk.doc_id == "doc_123"
+        for chunk in chunks
+    )
+
+
+def test_knowledge_base_id_is_preserved_on_every_chunk():
+    chunker = RecursiveChunker(
+        chunk_size=30,
+        chunk_overlap=5,
+    )
+
+    chunks = chunker.chunk(
+        doc_id="doc_123",
+        pages=create_pages(),
+        knowledge_base_id="kb_company",
+    )
+
+    assert chunks
+
+    assert all(
+        chunk.knowledge_base_id == "kb_company"
         for chunk in chunks
     )
 
@@ -121,6 +143,7 @@ def test_empty_pages_are_rejected():
         chunker.chunk(
             doc_id="doc_001",
             pages=[],
+            knowledge_base_id="kb_default",
         )
 
 
@@ -134,6 +157,7 @@ def test_empty_doc_id_is_rejected():
         chunker.chunk(
             doc_id="",
             pages=create_pages(),
+            knowledge_base_id="kb_default",
         )
 
 
@@ -147,6 +171,35 @@ def test_whitespace_doc_id_is_rejected():
         chunker.chunk(
             doc_id="   ",
             pages=create_pages(),
+            knowledge_base_id="kb_default",
+        )
+
+
+def test_empty_knowledge_base_id_is_rejected():
+    chunker = RecursiveChunker()
+
+    with pytest.raises(
+        ValueError,
+        match="knowledge_base_id",
+    ):
+        chunker.chunk(
+            doc_id="doc_001",
+            pages=create_pages(),
+            knowledge_base_id="",
+        )
+
+
+def test_whitespace_knowledge_base_id_is_rejected():
+    chunker = RecursiveChunker()
+
+    with pytest.raises(
+        ValueError,
+        match="knowledge_base_id",
+    ):
+        chunker.chunk(
+            doc_id="doc_001",
+            pages=create_pages(),
+            knowledge_base_id="   ",
         )
 
 
@@ -179,18 +232,20 @@ def test_overlap_equal_to_size_is_rejected():
             chunk_overlap=100,
         )
 
-def test_chunker_uses_settings(monkeypatch):
+
+def test_chunker_uses_settings():
     config = Settings(
         chunk_size=500,
         chunk_overlap=100,
     )
 
     chunker = RecursiveChunker(
-        config=config
+        config=config,
     )
 
     assert chunker.chunk_size == 500
     assert chunker.chunk_overlap == 100
+
 
 def test_chunker_explicit_values_override_settings():
     config = Settings(
@@ -205,4 +260,4 @@ def test_chunker_explicit_values_override_settings():
     )
 
     assert chunker.chunk_size == 800
-    assert chunker.chunk_overlap == 150            
+    assert chunker.chunk_overlap == 150

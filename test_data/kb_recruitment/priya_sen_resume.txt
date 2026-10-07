@@ -1,0 +1,19 @@
+RESUME — PRIYA SEN
+Location: Kolkata, India
+Current title: Machine Learning Engineer
+Current company: DataWorks Analytics
+Experience: 5 years
+
+Skills: Python, SQL, PyTorch, scikit-learn, NLP, Transformers, Hugging Face, FastAPI, Docker, AWS
+
+Summary
+Machine learning engineer with 5 years of experience in NLP and recommendation systems. Built production ML services for document classification, semantic search, and customer-support automation.
+
+Recent work
+Developed a transformer-based document retrieval pipeline and deployed inference services using FastAPI and Docker. Worked closely with data engineers on PostgreSQL-based feature pipelines.
+
+Education
+M.Tech in Computer Science, Jadavpur University.
+
+Availability
+Immediate.

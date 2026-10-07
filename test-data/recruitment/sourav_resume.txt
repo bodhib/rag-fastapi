@@ -1,0 +1,54 @@
+Sourav Roy
+Senior Python API Engineer
+Pune, India
+
+Professional Summary
+
+Backend engineer with 8 years of experience specializing in Python API platforms and distributed systems.
+
+Technical Skills
+
+Python
+FastAPI
+Flask
+Django
+PostgreSQL
+Redis
+Kafka
+Docker
+Kubernetes
+AWS
+Pytest
+REST APIs
+Microservices
+
+Experience
+
+Senior API Engineer
+CloudScale Technologies
+2020 - Present
+
+Designed high-throughput APIs using Python and FastAPI.
+
+Built microservices deployed on Kubernetes.
+
+Implemented Redis caching and Kafka-based event processing.
+
+Designed PostgreSQL schemas and optimized database performance.
+
+Created comprehensive automated testing using Pytest.
+
+Backend Engineer
+Enterprise Systems Ltd
+2018 - 2020
+
+Developed Python and Flask APIs.
+
+Built integrations with PostgreSQL databases.
+
+Worked on containerized backend services.
+
+Education
+
+M.Tech in Computer Science
+IIT Kharagpur
